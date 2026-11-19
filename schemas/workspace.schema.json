@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "bugbot/workspace.schema.json",
+  "title": "bugbot workspace",
+  "description": "workspace.json, written by `bugbot setup`: which repositories this machine reviews and which local clone is canonical for each. Personal (local paths and login), never shared.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "repos"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "version": {
+      "const": 1
+    },
+    "github_user": {
+      "description": "gh login on the last setup run. Writes check the live login instead of trusting this.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "org": {
+      "type": "string"
+    },
+    "updated_at": {
+      "type": "string"
+    },
+    "repos": {
+      "description": "One entry per repository, keyed by owner/name.",
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9._-]+$"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/repo"
+      }
+    }
+  },
+  "$defs": {
+    "repo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path"
+      ],
+      "properties": {
+        "path": {
+          "description": "Canonical clone.",
+          "type": "string",
+          "minLength": 1
+        },
+        "clone_url": {
+          "description": "Normalized https URL; credentials are never stored.",
+          "type": "string"
+        },
+        "remote": {
+          "description": "Remote pointing at the organization, preferably origin.",
+          "type": "string"
+        },
+        "default_branch": {
+          "description": "From origin/HEAD, or from GitHub with --remote.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "review_md": {
+          "description": "Reserved: path of the repository's REVIEW.md.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "enabled": {
+          "description": "false keeps the entry but makes commands refuse the repository.",
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

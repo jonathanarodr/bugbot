@@ -1,0 +1,3 @@
+interface:
+  display_name: "Bugbot"
+  short_description: "Review GitHub pull requests with the Bugbot workflow."

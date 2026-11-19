@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "bugbot/repo.schema.json",
+  "title": "bugbot repository review config",
+  "description": "repos/<owner>/<name>.json: what is particular to one repository, expressed with the same keys for every repository. Created by `bugbot setup` only when missing, with just $schema, $metadata and repo; every review group is optional and added by hand when decided, never inferred from the repository. An absent group means not configured. The bot never rewrites the file; `bugbot doctor` checks it against the clone. Globs match the path from the repository root: ** crosses directories, * and ? stay within one segment, a trailing / matches everything below.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$metadata",
+    "repo"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "$metadata": {
+      "description": "About the file itself, not review rules.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version"
+      ],
+      "properties": {
+        "schema_version": {
+          "description": "Version of schemas/repo.schema.json this file follows.",
+          "const": 1
+        },
+        "created_at": {
+          "description": "When `bugbot setup` created the file (ISO 8601).",
+          "type": "string"
+        }
+      }
+    },
+    "repo": {
+      "description": "owner/name this config belongs to.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9._-]+$"
+    },
+    "sensitive": {
+      "description": "Files that always need full attention: a PR touching one is high tier with a floor of deep (choosing less is allowed and recorded as below_floor). Use for what a missed bug makes expensive: build and install scripts, CI and branch rules, permissions, native bridges, public API contracts, the review's own instructions. Empty: no floor.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "glob",
+          "reason"
+        ],
+        "properties": {
+          "glob": {
+            "$ref": "#/$defs/glob"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          },
+          "local_exec": {
+            "description": "deny: a PR touching this file never runs checks locally (the file can change what a build or install executes).",
+            "enum": [
+              "allow",
+              "deny"
+            ],
+            "default": "allow"
+          }
+        }
+      }
+    },
+    "tests": {
+      "description": "Test files: reviewed, but they take no part in the tier: not in the base risk (a tests-only PR is low), not in sensitive, not counted by large_diff or broad_change. A PR changing production code with no test file gets a warning. A file here keeps its domain for scope.",
+      "$ref": "#/$defs/globs"
+    },
+    "ignore": {
+      "description": "Files neither counted nor reviewed (generated output, vendored code).",
+      "$ref": "#/$defs/globs"
+    },
+    "domains": {
+      "description": "Ordered list of domains: a file belongs to the first domain whose paths match it. The domain decides the file's risk (the PR's tier is the highest risk among the domains it touches), the scope shown on the card and which finders run. Empty: every file is medium risk, scoped by top-level directory.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "paths"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,30}$"
+          },
+          "paths": {
+            "$ref": "#/$defs/globs"
+          },
+          "description": {
+            "type": "string"
+          },
+          "risk": {
+            "description": "Risk of a change in this domain: low (a PR touching only low domains is low tier), medium (default) or high. A domain raises the tier and the suggested depth but sets no floor; a floor comes only from `sensitive`.",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "default": "medium"
+          }
+        }
+      }
+    },
+    "large_diff": {
+      "description": "Overrides the global triage.large_diff for this repository.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "hooks": {
+      "description": "Overrides of the global hooks (bugbot.json `hooks`) for this repository only. Each key replaces the global value; absent keys keep it.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "reviewers": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "max": {
+              "description": "Same as bugbot.json hooks.reviewers.max, for this repository. 0: no limit.",
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "glob": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[^/]"
+    },
+    "globs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/glob"
+      },
+      "uniqueItems": true
+    }
+  }
+}

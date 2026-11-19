@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "bugbot/verdicts.schema.json",
+  "title": "bugbot verifier verdict",
+  "description": "verdicts/<finder>.<index>.<verifier>.json: one verifier's verdict on one candidate (candidates/<finder>.json, candidates[index]); verifier is v1, v2 or v3. Written by the verifier agent into verdicts/ (created by fetch); read by `bugbot findings`, which counts the verdicts and writes findings.json. One file per verdict, so verifiers run in parallel without sharing a file. Holds only the judgment: which candidate and which verifier come from the file name, and a verdict older than its candidates file is refused (the finder ran again after it). Fetch empties the folder when the PR's head changes.",
+  "x-file": "^([a-z][a-z0-9-]{0,40})\\.(\\d+)\\.(v\\d+)\\.json$",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "verdict",
+    "reason",
+    "checks"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "version": {
+      "const": 2
+    },
+    "verdict": {
+      "description": "keep: real, introduced or made reachable by this PR, worth a person's time. cut: any of the three fails. unsure: could not settle it by reading.",
+      "enum": [
+        "keep",
+        "cut",
+        "unsure"
+      ]
+    },
+    "reason": {
+      "description": "One sentence a person can check: what was read and what it showed. For cut, the concrete cause.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 400
+    },
+    "checks": {
+      "description": "The three questions, answered separately, so the retro sees which one cuts most.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "real",
+        "from_pr",
+        "matters"
+      ],
+      "properties": {
+        "real": {
+          "description": "The evidence matches the code at the cited lines, every cited rule exists verbatim in its source, and the explanation describes a defect that follows from them.",
+          "enum": [
+            "yes",
+            "no",
+            "unsure"
+          ]
+        },
+        "from_pr": {
+          "description": "yes: the PR introduced it. pre_existing: it is on the base too, and the PR's change touches or relies on it. no: unrelated to what the PR changed.",
+          "enum": [
+            "yes",
+            "pre_existing",
+            "no"
+          ]
+        },
+        "matters": {
+          "description": "yes: a defect a person should act on. no: style, cleanup, preference, or what CI already enforces.",
+          "enum": [
+            "yes",
+            "no"
+          ]
+        }
+      }
+    },
+    "cut_reason": {
+      "description": "For cut, the category: evidence_mismatch, rule_not_found, not_a_defect, unrelated_to_pr, style_only, unverified_intent, tool_noise, duplicate.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "evidence_mismatch",
+        "rule_not_found",
+        "not_a_defect",
+        "unrelated_to_pr",
+        "style_only",
+        "unverified_intent",
+        "tool_noise",
+        "duplicate",
+        null
+      ]
+    },
+    "severity": {
+      "description": "The severity the verifier finds right. The assembly uses the highest severity supported by a keep verdict.",
+      "enum": [
+        "Critical",
+        "High",
+        "Medium",
+        "Low"
+      ]
+    },
+    "duplicate_of": {
+      "description": "For cut as duplicate: the other candidate it repeats, as <finder>/<index>.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-z][a-z0-9-]{0,40}/[0-9]+$"
+    },
+    "agent": {
+      "description": "Who wrote this file, filled by the CLI from the harness's log (the dispatch named bugbot:<repo name>#<number>:<output>), never by the agent. Absent when the log was not found.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model",
+        "effort",
+        "session"
+      ],
+      "properties": {
+        "model": {
+          "description": "Model that actually ran (may differ from the agent's frontmatter).",
+          "type": "string"
+        },
+        "effort": {
+          "description": "Reasoning effort the harness logged; null when it logs none (usually its default).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "session": {
+          "description": "Harness session id of the orchestrator that dispatched it.",
+          "type": "string"
+        },
+        "run": {
+          "description": "The sub-agent's own id in that session's log (Copilot and Claude Code: agentId): tells apart runs that share the session.",
+          "type": "string"
+        }
+      }
+    }
+  }
+}

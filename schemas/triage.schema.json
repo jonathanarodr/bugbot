@@ -1,0 +1,752 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "bugbot/triage.schema.json",
+  "title": "bugbot triage",
+  "description": "triage.json, written by `bugbot triage` next to meta.json. Tier, depth and scope computed from paths, sizes and CI state only, plus the reviewer's decision for each head sha (input of the retro).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "repo",
+    "pr",
+    "head",
+    "config",
+    "tier",
+    "reasons",
+    "depth",
+    "stats",
+    "scope",
+    "local_exec",
+    "ci",
+    "hooks",
+    "round",
+    "warnings",
+    "files",
+    "rounds",
+    "computed_at"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "version": {
+      "const": 1
+    },
+    "repo": {
+      "type": "string"
+    },
+    "pr": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "head": {
+      "$ref": "#/$defs/sha"
+    },
+    "author": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "config": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "exists"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "exists": {
+          "type": "boolean"
+        },
+        "configured": {
+          "description": "Groups of the repo config that have at least one entry.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "tier": {
+      "$ref": "#/$defs/tier"
+    },
+    "reasons": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "depth": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "suggested",
+        "floor"
+      ],
+      "properties": {
+        "suggested": {
+          "$ref": "#/$defs/depth"
+        },
+        "floor": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/depth"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "deep when a `sensitive` file is touched, else null."
+        }
+      }
+    },
+    "stats": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "files",
+        "lines",
+        "production",
+        "tests",
+        "domains",
+        "ignored",
+        "binary",
+        "large_diff"
+      ],
+      "properties": {
+        "files": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "lines": {
+          "description": "Every reviewable line (ignore excluded).",
+          "type": "integer",
+          "minimum": 0
+        },
+        "production": {
+          "description": "Lines in production code: outside low-risk domains and tests. What large_diff measures.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "tests": {
+          "description": "Lines in files matching `tests`.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "domains": {
+          "description": "Production domains touched (what broad_change measures).",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "ignored": {
+          "description": "Files matching `ignore`: out of every count and of the review.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "binary": {
+          "description": "Binary files outside `sensitive`: out of every count and of the review, since no finder reads them.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "large_diff": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "broad_change": {
+          "description": "0: off.",
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "scope": {
+      "description": "Domain → reviewable files and lines, largest first.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "files",
+          "lines"
+        ],
+        "properties": {
+          "files": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "lines": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "local_exec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "allowed",
+        "denied_by"
+      ],
+      "properties": {
+        "allowed": {
+          "type": "boolean"
+        },
+        "denied_by": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "ci": {
+      "description": "Checks read live with `gh pr checks --json`, in gh's own buckets: pass (SUCCESS), fail (ERROR, FAILURE, TIMED_OUT, ACTION_REQUIRED), cancel (CANCELLED), skipping (SKIPPED, NEUTRAL), pending (anything else). gh keeps only the latest run of each check.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "read",
+        "error",
+        "all",
+        "required"
+      ],
+      "properties": {
+        "read": {
+          "description": "false when gh could not be read; hooks.ci passed then waits.",
+          "type": "boolean"
+        },
+        "error": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "all": {
+          "description": "Every check.",
+          "$ref": "#/$defs/checks"
+        },
+        "required": {
+          "description": "Required checks only (branch protection). available false: the repository reports none, so CI does not gate.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "available",
+            "pass",
+            "fail",
+            "cancel",
+            "skipping",
+            "pending",
+            "total",
+            "state",
+            "failing"
+          ],
+          "properties": {
+            "available": {
+              "type": "boolean"
+            },
+            "pass": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "fail": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "cancel": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "skipping": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "pending": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "total": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "state": {
+              "description": "fail when any check failed or was cancelled, else pending when any is running, else pass; none when there are no checks.",
+              "enum": [
+                "pass",
+                "fail",
+                "pending",
+                "none"
+              ]
+            },
+            "failing": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "round": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "number",
+        "previous_head",
+        "scope",
+        "full_forced"
+      ],
+      "properties": {
+        "number": {
+          "description": "Bot reviews on the PR plus one.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "previous_head": {
+          "description": "Head the last bot review covered (from its marker).",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/sha"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "note": {
+          "type": "string"
+        },
+        "scope": {
+          "description": "full: the whole diff. delta: only meta.delta files (delta.patch). unchanged: no commit since the last bot review, or commits that did not change the PR's own diff: nothing new to review. capped: past review.max_rounds, stop and reconsider the approach.",
+          "enum": [
+            "full",
+            "delta",
+            "unchanged",
+            "capped"
+          ]
+        },
+        "full_forced": {
+          "description": "triage --full was given.",
+          "type": "boolean"
+        },
+        "commits_since": {
+          "description": "Commits pushed since the last bot review (meta.rounds.commits_since).",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        }
+      },
+      "description": "This round, from the bot's reviews on GitHub (meta.rounds): which review it follows and what it reviews (review.delta_from_round, review.max_rounds)."
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "status",
+          "lines",
+          "binary",
+          "domain",
+          "risk",
+          "test",
+          "sensitive",
+          "local_exec"
+        ],
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "binary": {
+            "type": "boolean"
+          },
+          "domain": {
+            "type": "string"
+          },
+          "risk": {
+            "description": "Risk of the file's domain (medium without domains).",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "test": {
+            "description": "Matches `tests`.",
+            "type": "boolean"
+          },
+          "sensitive": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "glob",
+                "reason"
+              ],
+              "properties": {
+                "glob": {
+                  "type": "string"
+                },
+                "reason": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "local_exec": {
+            "enum": [
+              "allow",
+              "deny"
+            ]
+          }
+        }
+      }
+    },
+    "rounds": {
+      "description": "One entry per head sha triaged, in order: the triage agent's assessment and the reviewer's decision. Rules (top level), agent and decision side by side are what the retro compares.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "head",
+          "at",
+          "decision"
+        ],
+        "properties": {
+          "head": {
+            "$ref": "#/$defs/sha"
+          },
+          "at": {
+            "type": "string"
+          },
+          "decision": {
+            "oneOf": [
+              {
+                "$ref": "#/$defs/decision"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "agent": {
+            "$ref": "#/$defs/agent"
+          }
+        }
+      }
+    },
+    "decision": {
+      "description": "Decision for the current head, same as the last round's.",
+      "$ref": "#/$defs/decision"
+    },
+    "computed_at": {
+      "type": "string"
+    },
+    "hooks": {
+      "description": "Result of the settings hooks for the current head: whether the PR is reviewed at all.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "outcome",
+        "rule",
+        "reason",
+        "labels",
+        "draft",
+        "reviewers",
+        "config"
+      ],
+      "properties": {
+        "outcome": {
+          "description": "review, skip (hook says no) or wait (required checks still running).",
+          "enum": [
+            "review",
+            "skip",
+            "wait"
+          ]
+        },
+        "rule": {
+          "description": "The hook that decided; null when reviewed.",
+          "oneOf": [
+            {
+              "enum": [
+                "draft",
+                "stale_days",
+                "exclude_teams",
+                "labels.skip",
+                "labels.trigger",
+                "reviewers.max",
+                "ci"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "labels": {
+          "description": "PR labels read live at triage time.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "draft": {
+          "description": "Draft state read live at triage time.",
+          "type": "boolean"
+        },
+        "config": {
+          "description": "The hooks in effect after repository overrides, copied so the record stays explainable after settings change. `overrides` names the setting a repository config replaced and the file it came from.",
+          "type": "object"
+        },
+        "reviewers": {
+          "description": "People counted by reviewers.max: latest review APPROVED or CHANGES_REQUESTED, no bots, ignored logins, author or the reviewer running the bot.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "requested": {
+          "description": "Review requests that reach the reviewer running the bot, read live: their own login and their teams (org/slug). Empty when hooks.exclude_teams is empty.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "last_commit_at": {
+          "description": "Committer date of the PR's head commit, read live; what stale_days measures.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    }
+  },
+  "$defs": {
+    "sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "tier": {
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ]
+    },
+    "depth": {
+      "enum": [
+        "quick",
+        "standard",
+        "deep"
+      ]
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "depth",
+        "suggested",
+        "override",
+        "below_floor",
+        "at"
+      ],
+      "properties": {
+        "depth": {
+          "enum": [
+            "quick",
+            "standard",
+            "deep",
+            "abort"
+          ]
+        },
+        "suggested": {
+          "$ref": "#/$defs/depth",
+          "description": "Depth suggested when the reviewer chose: the triage agent's when it assessed this head, else the rules'."
+        },
+        "override": {
+          "description": "The reviewer chose a depth other than the suggested one.",
+          "type": "boolean"
+        },
+        "below_floor": {
+          "description": "The chosen depth is below the floor a high tier sets.",
+          "type": "boolean"
+        },
+        "at": {
+          "type": "string"
+        },
+        "forced": {
+          "description": "The reviewer went on although a hook said skip or wait (--force).",
+          "type": "boolean"
+        }
+      }
+    },
+    "checks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pass",
+        "fail",
+        "cancel",
+        "skipping",
+        "pending",
+        "total",
+        "state",
+        "failing"
+      ],
+      "properties": {
+        "pass": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "fail": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cancel": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "skipping": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "pending": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "state": {
+          "description": "fail when any check failed or was cancelled, else pending when any is running, else pass; none when there are no checks.",
+          "enum": [
+            "pass",
+            "fail",
+            "pending",
+            "none"
+          ]
+        },
+        "failing": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "agent": {
+      "description": "The triage agent's assessment of this head: it read the change and kept, raised or lowered what the rules gave. Lowering moves one level at most and never below a sensitive floor (enforced by `triage --assess`). Absent: the agent did not run on this head.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "outcome",
+        "tier",
+        "depth",
+        "reason",
+        "at"
+      ],
+      "properties": {
+        "outcome": {
+          "enum": [
+            "keep",
+            "raise",
+            "lower"
+          ]
+        },
+        "tier": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "rules",
+            "final"
+          ],
+          "properties": {
+            "rules": {
+              "$ref": "#/$defs/tier"
+            },
+            "final": {
+              "$ref": "#/$defs/tier"
+            }
+          }
+        },
+        "depth": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "rules",
+            "final"
+          ],
+          "properties": {
+            "rules": {
+              "$ref": "#/$defs/depth"
+            },
+            "final": {
+              "$ref": "#/$defs/depth"
+            }
+          }
+        },
+        "reason": {
+          "description": "One line about the change: why the rules' weight is or is not right for it.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "at": {
+          "type": "string"
+        },
+        "model": {
+          "description": "Model the triage agent actually ran, from the harness's log (dispatch bugbot:<repo name>#<number>:triage). Absent when not found.",
+          "type": "string"
+        },
+        "effort": {
+          "description": "Reasoning effort the harness logged; null when it logs none (usually its default).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "session": {
+          "description": "Harness session id of the orchestrator that dispatched it.",
+          "type": "string"
+        },
+        "run": {
+          "description": "The sub-agent's own id in that session's log (Copilot and Claude Code: agentId): tells apart runs that share the session.",
+          "type": "string"
+        }
+      }
+    }
+  }
+}

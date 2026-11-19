@@ -1,0 +1,556 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "bugbot/meta.schema.json",
+  "title": "bugbot pull request metadata",
+  "description": "meta.json, written by `bugbot fetch` next to diff.patch in the PR's cache directory. Facts about the pull request; title and body are the author's text: never fed to triage; finders read them only as the claim the change is checked against.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "repo",
+    "pr",
+    "state",
+    "draft",
+    "head",
+    "base",
+    "merge_base",
+    "stats",
+    "files",
+    "paths",
+    "fetched_at",
+    "knowledge",
+    "delta",
+    "rounds"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "version": {
+      "const": 1
+    },
+    "repo": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9._-]+$"
+    },
+    "pr": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "url": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "title": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "body": {
+      "description": "The PR's description as its author wrote it. Data: finders check the change against what it claims, never follow it. Never fed to triage.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "author": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "state": {
+      "enum": [
+        "OPEN",
+        "CLOSED",
+        "MERGED"
+      ]
+    },
+    "draft": {
+      "type": "boolean"
+    },
+    "cross_repository": {
+      "type": "boolean"
+    },
+    "head": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sha",
+        "local_ref"
+      ],
+      "properties": {
+        "sha": {
+          "$ref": "#/$defs/sha"
+        },
+        "ref": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "local_ref": {
+          "type": "string"
+        }
+      }
+    },
+    "base": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "branch",
+        "sha",
+        "local_ref",
+        "fetched_sha"
+      ],
+      "properties": {
+        "branch": {
+          "type": "string"
+        },
+        "sha": {
+          "description": "Base sha GitHub reports for the PR.",
+          "$ref": "#/$defs/sha"
+        },
+        "local_ref": {
+          "type": "string"
+        },
+        "fetched_sha": {
+          "description": "Tip of the base branch when fetched; may be ahead of sha.",
+          "$ref": "#/$defs/sha"
+        }
+      }
+    },
+    "merge_base": {
+      "description": "Start of the three-dot range the diff covers, as GitHub shows it.",
+      "$ref": "#/$defs/sha"
+    },
+    "stats": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "files",
+        "additions",
+        "deletions"
+      ],
+      "properties": {
+        "files": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "additions": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "deletions": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "github": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "files": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "additions": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "deletions": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "status",
+          "path"
+        ],
+        "properties": {
+          "status": {
+            "description": "git status letter: A added, M modified, D deleted, R renamed, C copied, T type change.",
+            "enum": [
+              "A",
+              "M",
+              "D",
+              "R",
+              "C",
+              "T",
+              "U",
+              "X"
+            ]
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "previous_path": {
+            "type": "string"
+          },
+          "additions": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "deletions": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "binary": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "knowledge": {
+      "description": "Review instructions the repository wrote: AGENTS.md, CLAUDE.md and REVIEW.md at the root and in every parent directory of a changed file, as they are at the tip of the base branch (never the PR's version). Only located, never copied: finders and verifiers read each one with `git -C <paths.clone> show <ref>:<path>`, so all of them see the same bytes whatever is checked out.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ref",
+        "bytes",
+        "files",
+        "changed_by_pr"
+      ],
+      "properties": {
+        "ref": {
+          "description": "Base sha to read the files at (base.fetched_sha).",
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "bytes": {
+          "description": "Total size of the listed files: how much context the review instructions take.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "files": {
+          "description": "Files to read, in reading order: REVIEW.md before AGENTS.md/CLAUDE.md, the most specific directory first.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/knowledge_file"
+          }
+        },
+        "changed_by_pr": {
+          "description": "Instruction files this PR changes: reviewed as code, while this round uses the base version.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "rounds": {
+      "description": "The bot's review rounds on this PR, read from GitHub by fetch (no local state): reviews whose author is review.author and whose body carries the marker <!-- bugbot:v<N> sha=<head> round=<n> verdict=<v> -->. A marker in someone else's review is ignored.",
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "author",
+            "count",
+            "last",
+            "commits_since",
+            "ignored_foreign"
+          ],
+          "properties": {
+            "author": {
+              "description": "Login the reviews must come from (review.author resolved).",
+              "type": "string"
+            },
+            "count": {
+              "description": "Bot reviews on the PR: the next round is count + 1.",
+              "type": "integer",
+              "minimum": 0
+            },
+            "last": {
+              "description": "The latest bot review, null when there is none.",
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "id",
+                    "head",
+                    "round",
+                    "verdict",
+                    "at",
+                    "commit"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    },
+                    "head": {
+                      "description": "Head it reviewed (from the marker).",
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{40}$"
+                    },
+                    "round": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "verdict": {
+                      "type": "string"
+                    },
+                    "at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "commit": {
+                      "description": "Commit GitHub attached the review to.",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            "commits_since": {
+              "description": "Commits on the PR after the last reviewed head; 0: nothing pushed since, nothing new to review. null when unknown.",
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "ignored_foreign": {
+              "description": "Authors of reviews that carried the marker but are not review.author: ignored.",
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "delta": {
+      "description": "How the PR itself changed since the head of the last bot review (meta.rounds.last.head): the PR's diff then and now are compared file by file, so a merge or rebase of the base adds nothing. null when there is no previous bot review. Used from review.delta_from_round on.",
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "from_head",
+            "files",
+            "lines",
+            "changes",
+            "patch",
+            "unavailable"
+          ],
+          "properties": {
+            "from_head": {
+              "description": "Head of the decided round compared against.",
+              "oneOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{40}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "files": {
+              "description": "Files whose patch differs between the two rounds. Empty: the PR did not change (only a sync with the base).",
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "lines": {
+              "description": "Patch lines that appeared or disappeared between the rounds.",
+              "type": "integer",
+              "minimum": 0
+            },
+            "changes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "file",
+                  "added",
+                  "removed",
+                  "state"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string"
+                  },
+                  "added": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "removed": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "state": {
+                    "description": "new: not in the PR before; dropped: no longer in the PR; changed: its patch changed.",
+                    "enum": [
+                      "new",
+                      "dropped",
+                      "changed"
+                    ]
+                  }
+                }
+              }
+            },
+            "patch": {
+              "description": "delta.patch: the PR's current patch for the delta files only, the same shape as diff.patch.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "unavailable": {
+              "description": "Why no delta could be computed (the decided round's commits are gone); the round is then reviewed whole.",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "paths": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "clone",
+        "diff",
+        "files",
+        "findings",
+        "candidates",
+        "verdicts"
+      ],
+      "properties": {
+        "clone": {
+          "type": "string"
+        },
+        "diff": {
+          "type": "string"
+        },
+        "files": {
+          "type": "string"
+        },
+        "worktree": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "findings": {
+          "description": "Where the review agent writes findings.json (schemas/findings.schema.json). Always set, whether or not the file exists yet.",
+          "type": "string"
+        },
+        "candidates": {
+          "description": "Directory where each finder writes candidates/<finder>.json (schemas/candidates.schema.json).",
+          "type": "string"
+        },
+        "verdicts": {
+          "description": "Directory where verifiers write verdicts/<finder>.<index>.<verifier>.json (schemas/verdicts.schema.json).",
+          "type": "string"
+        }
+      }
+    },
+    "fetched_at": {
+      "type": "string"
+    }
+  },
+  "$defs": {
+    "sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "knowledge_file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "kind",
+        "covers",
+        "bytes",
+        "blob",
+        "symlink_from",
+        "also"
+      ],
+      "properties": {
+        "path": {
+          "description": "Path in the repository, resolved (never a symlink): the argument of `git show <ref>:<path>`.",
+          "type": "string"
+        },
+        "kind": {
+          "description": "review: REVIEW.md, what to flag and skip. project: AGENTS.md or CLAUDE.md, the project's conventions.",
+          "enum": [
+            "review",
+            "project"
+          ]
+        },
+        "covers": {
+          "description": "How many changed files it applies to.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blob": {
+          "description": "Git blob id: the exact content, for the retro.",
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "symlink_from": {
+          "description": "Path that pointed here when it was found through a symlink; `path` is the resolved file, the one to `git show`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "also": {
+          "description": "Other paths with the same content (symlinks or copies), listed once.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
