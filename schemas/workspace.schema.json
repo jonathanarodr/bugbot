@@ -24,7 +24,11 @@
       ]
     },
     "org": {
-      "type": "string"
+      "description": "Owner setup filtered by; null when every owner was offered.",
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "updated_at": {
       "type": "string"

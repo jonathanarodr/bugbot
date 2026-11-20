@@ -84,7 +84,7 @@ def build(args):
         "$schema": schema.schema_ref("workspace", os.path.dirname(os.path.abspath(args.current))),
         "version": VERSION,
         "github_user": args.gh_user or current.get("github_user"),
-        "org": args.org,
+        "org": args.org or None,
         "updated_at": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
         "repos": {name: order(repos[name]) for name in sorted(repos, key=str.lower)},
     }
@@ -183,7 +183,7 @@ def main():
     sub.add_argument("--candidates", required=True)
     sub.add_argument("--selection", required=True)
     sub.add_argument("--gh-user", default="")
-    sub.add_argument("--org", required=True)
+    sub.add_argument("--org", default="")
     sub.set_defaults(handler=build)
 
     sub = commands.add_parser("diff")

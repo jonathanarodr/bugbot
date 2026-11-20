@@ -2,16 +2,18 @@
 #
 # The values come from schemas/settings.schema.json (`x-init` of each setting, the reference
 # configuration), so the schema stays the single source of truth. The organization is never
-# built in: it is given with --org or BUGBOT_ORG. Runs without settings, since it creates them.
+# built in: it is given with --org or BUGBOT_ORG, or left out so setup offers clones of any owner
+# (personal repositories, several organizations). Runs without settings, since it creates them.
 
 bb_init_usage() {
-  print -u2 "usage: bugbot init --org <name> [options]
+  print -u2 "usage: bugbot init [--org <name>] [options]
 
 Create bugbot.json with the default value of every setting (schemas/settings.schema.json,
 x-init). Edit it afterwards, or put personal overrides in bugbot.local.json.
 
 Options:
-  --org <name>  GitHub organization whose repositories the bot reviews (default: \$BUGBOT_ORG)
+  --org <name>  GitHub owner (organization or user) whose clones setup offers
+                (default: \$BUGBOT_ORG; none: clones of any owner)
   --force       replace an existing bugbot.json
   --print       print the file to stdout, write nothing
   --no-color    no colors
@@ -35,7 +37,6 @@ bb_cmd_init() {
     esac
   done
 
-  [[ -n $org ]] || { print -u2 "bugbot init: give the GitHub organization with --org <name>"; return 2 }
   [[ $force == true ]] && flags+=(--force)
   [[ $show == true ]] && flags+=(--print)
 
@@ -47,7 +48,7 @@ bb_cmd_init() {
   bb_term_init $color
   bb_say_open "bugbot init"
   bb_say_bar
-  bb_say_kv org "$org"
+  bb_say_kv org "${org:-(any owner)}"
   out=$(python3 "$BUGBOT_HOME/lib/core/settings.py" init --home "$BUGBOT_HOME" --org "$org" $flags 2>&1) || {
     bb_say_close "${c_red}${out#bugbot: }${c_reset}"
     return 2

@@ -14,9 +14,10 @@
       "additionalProperties": false,
       "properties": {
         "org": {
-          "description": "GitHub organization whose repositories the bot recognizes.",
+          "description": "GitHub owner, an organization or a user, whose repositories setup offers. Empty or left out: clones of any owner on GitHub, chosen in the selector (personal repositories, several organizations).",
           "type": "string",
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9-]*$",
+          "pattern": "^([A-Za-z0-9][A-Za-z0-9-]*)?$",
+          "default": "",
           "x-env": "BUGBOT_ORG"
         }
       }

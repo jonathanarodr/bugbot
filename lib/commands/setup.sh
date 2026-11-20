@@ -17,7 +17,8 @@ bb_setup_usage() {
   for root in "${BUGBOT_SCAN_ROOTS[@]}"; do bb_tilde "$root"; shown+=("$REPLY"); done
   print -u2 "usage: bugbot setup [options]
 
-Find local clones of the organization, pick one canonical clone per repository,
+Find local clones of GitHub repositories (of github.org when it is set, else of any
+owner), pick one canonical clone per repository,
 write ${BUGBOT_WORKSPACE_FILE:t} and create a minimal review config in
 repos/<owner>/<name>.json for each selected repository that has none yet.
 Existing configs are never changed; 'bugbot doctor' checks them.
@@ -25,7 +26,7 @@ Existing configs are never changed; 'bugbot doctor' checks them.
 Options:
   --root <dir>      directory to scan (repeatable; default: ${(j:, :)shown})
   --depth <n>       maximum scan depth (default: $BUGBOT_SCAN_DEPTH)
-  --org <name>      GitHub organization (default: $BUGBOT_ORG)
+  --org <name>      only clones of this GitHub owner (default: ${BUGBOT_ORG:-any owner})
   --hidden          include hidden directories in the scan
   --remote          ask GitHub for default branches the local clone does not know
   --all             select every repository without the selector (suggested clone)
@@ -246,7 +247,7 @@ bb_cmd_setup() {
 
   bb_say_open "bugbot setup"
   bb_say_bar
-  bb_say_kv org "$BB_SETUP_ORG"
+  bb_say_kv org "${BB_SETUP_ORG:-(any owner)}"
   bb_say_kv roots "${(j: · :)shown}"
   bb_tilde "$BUGBOT_WORKSPACE_FILE"
   bb_say_kv output "$REPLY"

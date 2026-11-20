@@ -38,7 +38,7 @@ bb_usage() {
   print -u2 "usage: bugbot <command> [options]
 
 Commands:
-  init      create bugbot.json with the default values (--org <name>)
+  init      create bugbot.json with the default values ([--org <name>])
   setup     find local clones, write workspace.json and default repo configs
   fetch     bring a PR to this machine: diff, metadata and optional worktree
   inbox     list PRs whose review was requested from you, pick, fetch and triage

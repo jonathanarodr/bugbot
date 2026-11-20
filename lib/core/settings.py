@@ -119,7 +119,7 @@ def resolve_quietly(home):
 
 def resolve(home):
     if not os.path.exists(os.path.join(home, SHARED)):
-        fail(f"{SHARED} not found: run 'bugbot init --org <name>' to create it with the default values")
+        fail(f"{SHARED} not found: run 'bugbot init' to create it with the default values")
     try:
         shared = schema.read_document(os.path.join(home, SHARED), "settings")
         local = schema.read_document(os.path.join(home, LOCAL), "settings", required=False) or {}
@@ -222,13 +222,15 @@ def as_json(args):
 
 def initial(org):
     """bugbot.json built from the schema: every setting at its `x-init` value (the reference
-    configuration), github.org from the caller. A setting with neither `x-init` nor `default`
+    configuration), github.org from the caller when given (left out otherwise: any owner). A setting with neither `x-init` nor `default`
     is refused, so a new key cannot be added to the schema without an initial value."""
     root = schema.load_schema("settings")
     data = {"$schema": "schemas/settings.schema.json"}
     missing = []
     for path, leaf in leaves(root):
         if path == "github.org":
+            if not org:
+                continue  # no org: setup offers clones of every owner (the schema's default)
             value = org
         elif "x-init" in leaf:
             value = leaf["x-init"]
@@ -296,7 +298,7 @@ def _main():
         sub.set_defaults(handler=handler)
     sub = commands.add_parser("init")
     sub.add_argument("--home", required=True)
-    sub.add_argument("--org", required=True)
+    sub.add_argument("--org", default="")
     sub.add_argument("--force", action="store_true")
     sub.add_argument("--print", action="store_true")
     sub.set_defaults(handler=init)

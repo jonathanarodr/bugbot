@@ -141,7 +141,7 @@ def check_settings(home):
     for name, required in (("bugbot.json", True), ("bugbot.local.json", False)):
         path = os.path.join(home, name)
         if required and not os.path.exists(path):
-            row(group, "fail", name, "not found: run 'bugbot init --org <name>'")
+            row(group, "fail", name, "not found: run 'bugbot init'")
             files_ok = False
             continue
         try:
@@ -471,7 +471,7 @@ def check_docs_settings_example(group, block):
         row(group, "fail", "settings example", str(error).splitlines()[0])
         return
     example.get("github", {}).pop("org", None)
-    expected["github"].pop("org", None)
+    expected.get("github", {}).pop("org", None)
     diff = sorted(path for path, _leaf in settings.leaves(schema.load_schema("settings"))
                   if settings.lookup(example, path) != settings.lookup(expected, path))
     if diff:

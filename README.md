@@ -6,17 +6,17 @@ This document has two parts. **Getting started** and **Commands** are for people
 
 ## Goal
 
-Support PR review across several repositories of a GitHub organization, on any stack, with the reviewer always in the loop. The bot prepares, analyzes and proposes; the person decides, comments and approves, with their own `gh` user.
+Support PR review across several GitHub repositories, of one organization, several, or your own account, on any stack, with the reviewer always in the loop. The bot prepares, analyzes and proposes; the person decides, comments and approves, with their own `gh` user.
 
 Orchestration belongs to the `.agents/bugbot.md` agent, which calls sub-agents per stage: triage, review per domain and verification (e.g. a PR touching the `components` domain dispatches that domain's reviewer). The CLI in this directory is the deterministic part those agents use: scripts, no LLM.
 
-The bot knows no organization or repository: the org is a value in `bugbot.json` (`github.org`, written by `bugbot init`), and everything specific to a project lives as a **value** in `repos/<owner>/<name>.json`, with the same keys for every repo. No code, schema, agent or example in this directory names a real org or repository; names such as `acme/web` are fictional.
+The bot knows no organization or repository: the org is an optional value in `bugbot.json` (`github.org`, written by `bugbot init`; left out, `setup` offers clones of any owner), and everything specific to a project lives as a **value** in `repos/<owner>/<name>.json`, with the same keys for every repo. No code, schema, agent or example in this directory names a real org or repository; names such as `acme/web` are fictional.
 
 Inspiration: [How the Claude Code team does code review](https://claude.dev/blog/solving-code-review-at-anthropic/). We adopted the shape (layers, tiers, voting, convergence), not full automation.
 
 ## Getting started
 
-**1. Requirements.** macOS with `zsh`, `git`, `python3` ≥ 3.9 (the system one is fine) and [`gh`](https://cli.github.com) logged in to the org with SSO authorized:
+**1. Requirements.** macOS with `zsh`, `git`, `python3` ≥ 3.9 (the system one is fine) and [`gh`](https://cli.github.com) logged in (with SSO authorized for any organization whose repositories you review):
 ```
 gh auth login            # once
 gh auth status           # check account and scopes
@@ -32,8 +32,10 @@ The CLI always works out its own location (symlinks included), so `bin/bugbot` r
 
 **3. Create the configuration.**
 ```
-bugbot init --org <org>  # writes bugbot.json with the default values; edit whatever you want afterwards
+bugbot init              # writes bugbot.json with the default values; edit whatever you want afterwards
+bugbot init --org <org>  # same, but setup only offers clones of that organization (or user)
 ```
+Without `--org`, `setup` offers the clones of every GitHub owner on the machine (your personal repositories, several organizations) and you pick in the selector. With it, only that owner's.
 For overrides of your own, create `bugbot.local.json` with only the keys that change (format in **Schemas → settings**).
 
 **4. Check the environment.**
@@ -43,7 +45,7 @@ bugbot doctor            # read-only: tools, login, settings, schemas, configs
 
 **5. Map your clones.** The bot clones nothing: it uses the clones you already have.
 ```
-bugbot setup             # scans ~, shows the org's repos and lets you pick one clone per repo
+bugbot setup             # scans ~, shows the GitHub repos (of github.org, when set) and lets you pick one clone per repo
 ```
 Writes `workspace.json` (your paths) and creates a minimal `repos/<owner>/<name>.json` for each chosen repo that has no config yet. Running it again updates paths and never touches a repo config that already exists.
 
@@ -82,8 +84,8 @@ Every command has `--help` and `--no-color`; the ones that write have `--plan` (
 
 | Command | What it does | Main options |
 |---|---|---|
-| `init` | Creates `bugbot.json` with the initial value of every setting (`x-init` in the settings schema); the org comes from `--org` or `BUGBOT_ORG`, never from code. Does not overwrite without `--force` | `--org`, `--force`, `--print` |
-| `setup` | Scans the machine for clones of the org, picks one canonical clone per repo, writes `workspace.json` and creates the missing `repos/*.json` | `--root`, `--depth`, `--all`, `--yes`, `--remote`, `--plan`, `--json` |
+| `init` | Creates `bugbot.json` with the initial value of every setting (`x-init` in the settings schema); the org is optional, from `--org` or `BUGBOT_ORG`, never from code (without it, `setup` offers every owner). Does not overwrite without `--force` | `--org`, `--force`, `--print` |
+| `setup` | Scans the machine for GitHub clones (only of `github.org` when it is set), picks one canonical clone per repo, writes `workspace.json` and creates the missing `repos/*.json` | `--root`, `--depth`, `--all`, `--yes`, `--remote`, `--plan`, `--json` |
 | `inbox` | Lists PRs whose review was requested from you (directly or through a team) in the workspace repos, already filtered by the hooks; the chosen ones go through `fetch` and `triage` | `--list`, `--hidden`, `--json`, `--query` |
 | `fetch <pr>` | Brings the PR to the machine: `diff.patch`, `files.txt`, `meta.json` in the cache; refs under `refs/bugbot/` in the clone (the clone's branch and files do not change) | `--repo`, `--worktree`, `--plan`, `--json` |
 | `triage <pr>` | Computes tier, suggested depth, scope and the round scope (full, delta, unchanged, capped) from the files and the PR state; runs the hooks; shows the card and records your decision per sha, pinning the reviewed head for the next round's delta. `--assess` records the `triage` agent's second opinion | `--repo`, `--depth`, `--no-confirm`, `--force`, `--full`, `--assess <tier> <depth> --reason`, `--json` |
@@ -208,7 +210,7 @@ Rules: the agent never executes anything, not even to "check"; commands come onl
 | Piece | Status |
 |---|---|
 | `bugbot init` — creates `bugbot.json` from the schema's initial values | done |
-| `bugbot setup` — discovers the org's clones and writes `workspace.json` | done |
+| `bugbot setup` — discovers GitHub clones (of an optional org) and writes `workspace.json` | done |
 | `bugbot config` — settings in use, origin and description | done |
 | Settings in JSON with a validated schema | done |
 | `bugbot fetch` — diff, metadata and worktree of a PR | done (validated against `gh pr diff` on a real PR) |
@@ -464,7 +466,7 @@ Three files you edit or generate, each with a role:
 
 | File | Question it answers | How to change it |
 |---|---|---|
-| `bugbot.json` / `bugbot.local.json` | How does the bot behave in any repo? (org, scan, triage limits, hooks) | `bugbot init` creates `bugbot.json`; then edit by hand; `bugbot config` shows the effect; a `BUGBOT_*` variable beats both |
+| `bugbot.json` / `bugbot.local.json` | How does the bot behave in any repo? (optional org, scan, triage limits, hooks) | `bugbot init` creates `bugbot.json`; then edit by hand; `bugbot config` shows the effect; a `BUGBOT_*` variable beats both |
 | `workspace.json` | Which repos does this machine review and where are the clones? | `bugbot setup` (manual edits are preserved) |
 | `repos/<owner>/<name>.json` | What is the risk of each part of this repo? | Edit by hand after `setup` |
 
@@ -517,14 +519,14 @@ Conventions shared by all:
 <details>
 <summary><b>settings</b> — <code>bugbot.json</code> and <code>bugbot.local.json</code>: global behavior of the bot</summary>
 
-**Represents** the bot's defaults that apply to any repository: which org to recognize, where to look for clones, triage limits. It holds nothing from any project. `bugbot init --org <name>` creates `bugbot.json` with every setting at its initial value.
+**Represents** the bot's defaults that apply to any repository: which owner's clones to offer (optional), where to look for clones, triage limits. It holds nothing from any project. `bugbot init [--org <name>]` creates `bugbot.json` with every setting at its initial value.
 
 **Precedence**, strongest first: command flag → environment variable → `bugbot.local.json` → `bugbot.json` → the schema's `default` (only on keys whose absence has a meaning, such as `review.max_lows`: omitted = no limit). The initial value `bugbot init` writes is something else: each setting's `x-init`, the reference configuration. `.local` accepts any subset of the keys; lists are replaced whole.
 
 **Structure**
 ```
 github
-  org                 string   ^[A-Za-z0-9][A-Za-z0-9-]*$; no initial value: init takes --org   BUGBOT_ORG
+  org                 string   optional owner (organization or user); empty or absent = any owner; init writes it only with --org   BUGBOT_ORG
 scan
   roots               string[] ≥ 1 item; ~ = home of whoever runs it  BUGBOT_SCAN_ROOTS
   depth               integer  1–8                                  BUGBOT_SCAN_DEPTH
@@ -557,7 +559,7 @@ hooks                          whether the PR is reviewed, decided before the ca
   ci                  passed|any  passed = only with required checks green  BUGBOT_HOOKS_CI
 ```
 
-**Example** (`bugbot.json`, exactly what `bugbot init --org acme` writes; `doctor` checks it)
+**Example** (`bugbot.json`, exactly what `bugbot init --org acme` writes; without `--org` the `github` group is left out; `doctor` checks it)
 ```json
 {
   "$schema": "schemas/settings.schema.json",
@@ -574,7 +576,7 @@ hooks                          whether the PR is reviewed, decided before the ca
 - Each setting has, in the schema, `description`, `x-env` (the environment variable) and `x-init` (the value `bugbot init` writes). `lib/core/settings.py` only walks the schema; there is no other list of keys in the code. `bugbot config` shows value, origin and description.
 - In the environment, a list is a JSON array (`BUGBOT_SCAN_ROOTS='["~/a", "/tmp/x y"]'`); a plain value becomes a one-item list and is never split on commas.
 - Derived paths (`BUGBOT_HOME`, `BUGBOT_WORKSPACE_FILE`, `BUGBOT_DATA_DIR`, `BUGBOT_RETRO_DIR`) are not here: environment only. `BUGBOT_HOME` is never read by the CLI, which always uses its own location; it is how agents find the CLI.
-- Without `bugbot.json`, every command except `init`, `doctor`, `format` and `validate` stops with `bugbot.json not found: run 'bugbot init --org <name>'`.
+- Without `bugbot.json`, every command except `init`, `doctor`, `format` and `validate` stops with `bugbot.json not found: run 'bugbot init'`.
 
 **Hooks** (inspired by Renovate: `stopUpdatingLabel` → `labels.skip`, `rebaseLabel` → `labels.trigger`, `prCreation: status-success` / `ignoreTests` → `ci: passed | any`). One scalar key per behavior, no rule list. Evaluated in the order draft → stale_days → exclude_teams → labels.skip → labels.trigger → reviewers.max → ci; the first one that applies decides `review`, `skip` or `wait`.
 - **Every hook applies to every tier.** The configuration is explicit: if `labels.skip` or `reviewers.max` skip a high PR, that is a risk taken by the configuration, not something the code silently undoes. (An earlier version exempted the high tier; it was removed for that reason.)
@@ -603,13 +605,13 @@ hooks                          whether the PR is reviewed, decided before the ca
 ```
 version             1
 github_user         string|null   gh login at the last setup (writes check the live login)
-org                 string
+org                 string|null   owner setup filtered by; null = every owner was offered
 updated_at          string        ISO 8601
 repos               object        key = owner/name
   <owner/name>
     path*           string        canonical clone
     clone_url       string        normalized https; credentials are never recorded
-    remote          string        the org's remote, preferably origin
+    remote          string        the GitHub remote of the repo, preferably origin
     default_branch  string|null   from origin/HEAD, or from GitHub with --remote
     review_md       string|null   reserved: path of REVIEW.md
     enabled         boolean       false = keeps the entry, but commands refuse the repo

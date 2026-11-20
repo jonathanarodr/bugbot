@@ -18,7 +18,7 @@ bb_inspect_one() {
   for remote in $remotes; do
     url=$(git -C "$dir" remote get-url "$remote" 2>/dev/null) || continue
     bb_github_slug "$url" || continue
-    [[ ${(L)REPLY%%/*} == ${(L)BB_SETUP_ORG} ]] || continue
+    [[ -z $BB_SETUP_ORG || ${(L)REPLY%%/*} == ${(L)BB_SETUP_ORG} ]] || continue
 
     head=$(git -C "$dir" symbolic-ref --quiet --short "refs/remotes/$remote/HEAD" 2>/dev/null)
     default=${head#$remote/}
@@ -77,13 +77,14 @@ bb_setup_inspect() {
   dupes=$(( ${#rows} - repos ))
   unknown=${#${(M)rows:#*$'\t'$'\t'[01]$'\t'*}}
 
-  print -r -- "${#clones} clones inspected, ${#rows} from org $BB_SETUP_ORG"
-  (( repos > 0 )) || { bb_note "no $BB_SETUP_ORG repos"; return 1 }
+  local owner=${BB_SETUP_ORG:-GitHub}
+  print -r -- "${#clones} clones inspected, ${#rows} from ${BB_SETUP_ORG:+org }$owner"
+  (( repos > 0 )) || { bb_note "no $owner repos"; return 1 }
 
-  bb_note "$repos $BB_SETUP_ORG repos · $dupes duplicate clone(s)"
+  bb_note "$repos $owner repos · $dupes duplicate clone(s)"
   if (( unknown > 0 )); then
     print -r -- "$unknown clone(s) without origin/HEAD: run with --remote or 'git remote set-head origin -a'"
-    bb_note "$repos $BB_SETUP_ORG repos · $dupes duplicate clone(s) · $unknown without default branch"
+    bb_note "$repos $owner repos · $dupes duplicate clone(s) · $unknown without default branch"
     return $BB_STEP_WARN
   fi
   return 0
