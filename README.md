@@ -529,7 +529,7 @@ github
   org                 string   optional owner (organization or user); empty or absent = any owner; init writes it only with --org   BUGBOT_ORG
 scan
   roots               string[] ≥ 1 item; ~ = home of whoever runs it  BUGBOT_SCAN_ROOTS
-  depth               integer  1–8                                  BUGBOT_SCAN_DEPTH
+  depth               integer  1–8; counted to the clone's .git: 5 finds ~/a/b/c/repo  BUGBOT_SCAN_DEPTH
   prune               string[] directory names never walked          BUGBOT_SCAN_PRUNE
   inspect_jobs        integer  1–32                                 BUGBOT_INSPECT_JOBS
 review
@@ -564,7 +564,7 @@ hooks                          whether the PR is reviewed, decided before the ca
 {
   "$schema": "schemas/settings.schema.json",
   "github": { "org": "acme" },
-  "scan": { "roots": ["~"], "depth": 4, "prune": ["node_modules", "Library", "build", ".Trash", "Pods", "DerivedData"], "inspect_jobs": 8 },
+  "scan": { "roots": ["~"], "depth": 5, "prune": ["node_modules", "Library", "build", ".Trash", "Pods", "DerivedData"], "inspect_jobs": 8 },
   "review": { "author": "@me", "marker_version": 1, "language": "en", "parallel": 2, "max_prs": 6, "delta_from_round": 3, "max_rounds": 3, "max_lows": 5 },
   "retro": { "auto_on_approve": true },
   "triage": { "large_diff": 1000, "broad_change": 3 },

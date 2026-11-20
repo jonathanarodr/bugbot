@@ -39,12 +39,12 @@
           ]
         },
         "depth": {
-          "description": "Maximum scan depth below each root.",
+          "description": "Maximum scan depth below each root, counted to the clone's .git folder: 5 finds ~/a/b/c/repo (repo four levels below ~).",
           "type": "integer",
           "minimum": 1,
           "maximum": 8,
           "x-env": "BUGBOT_SCAN_DEPTH",
-          "x-init": 4
+          "x-init": 5
         },
         "prune": {
           "description": "Directory names the scan never descends into.",
