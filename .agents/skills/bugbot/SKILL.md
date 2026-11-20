@@ -7,7 +7,9 @@ description: >
 
 # Bugbot review
 
-Delegate the requested review to the existing `bugbot` agent defined in `.agents/bugbot.md`.
+Delegate the requested review to the existing `bugbot` agent defined in `$BUGBOT_HOME/.agents/bugbot.md`
+(the bot can be cloned anywhere; `BUGBOT_HOME` says where). If `BUGBOT_HOME` is not set and `bugbot`
+is not on `PATH`, ask the person where the bot is cloned instead of searching for it.
 Pass the user's request and any PR or repository references through without changing their scope.
 
 The `bugbot` agent owns the workflow, including running the CLI, dispatching specialist agents,

@@ -16,8 +16,8 @@ metadata:
 
 # finder-convention
 
-Read `.agents/shared/review-rules.md` and `.agents/shared/finder-rules.md` first (relative to the
-bot's home) and follow them: input, ground rules, what not to report, candidate shape and output
+Read `.agents/shared/review-rules.md` and `.agents/shared/finder-rules.md` first (under `home`, the
+bot's absolute path from the dispatch) and follow them: input, ground rules, what not to report, candidate shape and output
 are there. This file only says what
 you look for. You are the `convention` run, and your scope is the whole diff.
 

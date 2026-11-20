@@ -3,7 +3,7 @@
 
 Checks, in groups, each producing ok / warn / fail rows:
   format        bot JSON files follow the code style (`bugbot format` fixes them)
-  environment   required tools and versions, gh authentication and token overrides
+  environment   required tools and versions, BUGBOT_HOME, gh authentication and token overrides
   settings      bugbot.json and bugbot.local.json against schemas/settings.schema.json
   schemas       every schema loads and uses only keywords the validator supports
   workspace     workspace.json is valid, every clone exists and its remote still matches
@@ -57,8 +57,22 @@ def version_tuple(text):
 
 # ── environment ────────────────────────────────────────────────────────────────
 
-def check_environment(offline):
+def check_environment(offline, home, env_home):
     group = "environment"
+    # Agents and skills find the CLI through $BUGBOT_HOME/bin/bugbot (then `command -v bugbot`).
+    real = os.path.realpath(home)
+    if not env_home:
+        on_path = shutil.which("bugbot")
+        if on_path and os.path.realpath(os.path.dirname(os.path.dirname(os.path.realpath(on_path)))) == real:
+            row(group, "warn", "BUGBOT_HOME", f"not set; agents fall back to bugbot on PATH ({on_path}). "
+                f"Add export BUGBOT_HOME={home} to ~/.zshrc")
+        else:
+            row(group, "warn", "BUGBOT_HOME", f"not set and bugbot is not on PATH: agents cannot find the CLI. "
+                f"Add export BUGBOT_HOME={home} to ~/.zshrc")
+    elif os.path.realpath(os.path.expanduser(env_home)) != real:
+        row(group, "fail", "BUGBOT_HOME", f"{env_home} is not this bot ({home}): agents would run another copy")
+    else:
+        row(group, "ok", "BUGBOT_HOME", home)
     row(group, "ok", "python", f"{sys.version.split()[0]} ({sys.executable})") \
         if sys.version_info >= (3, 9) else row(group, "fail", "python", f"{sys.version.split()[0]} < 3.9")
 
@@ -489,6 +503,7 @@ def check_docs_commands(group, home, readme):
 def main():
     parser = argparse.ArgumentParser(prog="doctor.py")
     parser.add_argument("--home", required=True)
+    parser.add_argument("--env-home", default="")
     parser.add_argument("--workspace", required=True)
     parser.add_argument("--data-dir", required=True)
     parser.add_argument("--offline", action="store_true")
@@ -505,7 +520,7 @@ def main():
     if wanted("format"):
         check_format(args.home, args.workspace)
     if wanted("environment"):
-        check_environment(args.offline)
+        check_environment(args.offline, args.home, args.env_home)
     if wanted("settings"):
         check_settings(args.home)
     if wanted("schemas") or wanted("docs"):

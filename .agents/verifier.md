@@ -23,20 +23,21 @@ the same candidate without seeing you, and the majority decides.
 
 ## Input (in the dispatch prompt)
 
+- `home` — absolute path of the bot's home; `.agents/`, `schemas/` and `bin/bugbot` are under it.
 - `finder`, `index` — the candidate is `candidates[index]` in `<paths.candidates>/<finder>.json`.
   Read that one entry. Do not read the other candidates or other finders' files.
 - `verifier` — your name for this verdict (`v1`, `v2`, `v3`).
 - `meta` — path of `meta.json`: `head.sha`, `merge_base`, `paths.worktree`, `paths.clone`,
   `paths.diff`, `paths.verdicts`, `knowledge`.
-- `skills` — review skills the finder had, if any (paths): rules may be cited from them.
 
 You get the candidate, not the finder's reasoning, on purpose. Do not ask for it.
 
-Read `.agents/shared/review-rules.md` first: where to read code, instructions and dependencies,
+Read `<home>/.agents/shared/review-rules.md` first: where to read code, instructions and dependencies,
 safety, severity and validation are there.
 
-Instructions you read: the `REVIEW.md` files in `meta.knowledge.files` (`kind: review`), for any
-repository-specific severity guidance; and any file a `rule` of the candidate cites, to check the quote.
+Instructions you read: every file in `meta.knowledge.files` (`REVIEW.md`, `AGENTS.md`, `CLAUDE.md`),
+from the base, for the repository's own severity guidance and conventions; and any file a `rule` or an
+`evidence` of the candidate cites, to check the quote.
 
 ## The three questions
 
@@ -45,7 +46,7 @@ Answer each one separately in `checks`; the verdict follows from them.
 **1. Is it real?** (`checks.real`)
 - Open every `evidence` entry at its file, ref and line. The `quote` must be there (small whitespace
   drift is fine). A quote that is not at that line, or not in that file, is `no`.
-- For a `rule`: find the quoted sentence in its `source` (instruction file or skill). Not found
+- For a `rule`: find the quoted sentence in its `source` (one of `meta.knowledge.files`). Not found
   verbatim, or found but saying something else, is `no`.
 - Follow the `explanation` step by step through the quoted code. Read beyond the quotes when a step
   depends on code they leave out: the caller that guards the null, the default that is never

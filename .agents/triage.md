@@ -17,7 +17,7 @@ metadata:
 
 # triage
 
-Read `.agents/shared/review-rules.md` first: where to read code and instructions, and safety.
+Read `<home>/.agents/shared/review-rules.md` first: where to read code and instructions, and safety.
 
 The bugbot CLI already classified this PR from facts: which domains it touches and their risk,
 which files are `sensitive`, how many production lines changed. Rules see paths and sizes; you see
@@ -27,6 +27,7 @@ change, and record it; then to plan the preflight (below). You do not review the
 ## Input (in the dispatch prompt)
 
 - `pr` — `owner/name#N`, for the CLI.
+- `home` — absolute path of the bot's home; `.agents/`, `schemas/` and `bin/bugbot` are under it.
 - `bugbot` — absolute path of `bin/bugbot`.
 - `triage` — path of `triage.json`: `tier`, `reasons`, `depth.suggested`, `depth.floor`, `stats`,
   `scope`, `files[]` (each with `domain`, `risk`, `test`, `sensitive`), `warnings`.

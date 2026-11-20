@@ -15,8 +15,8 @@ metadata:
 
 # retro
 
-Follow `.agents/skills/bugbot-retro/SKILL.md` as the procedure for this task. The caller supplies
-the PR, the absolute Bugbot CLI path and the trigger. For `auto_approve`, the caller has confirmed
+Follow `<home>/.agents/skills/bugbot-retro/SKILL.md` as the procedure for this task. The caller supplies
+the PR, `home` (the bot's absolute path), the absolute Bugbot CLI path and the trigger. For `auto_approve`, the caller has confirmed
 that this run successfully posted an `APPROVE`; do not ask for confirmation or publish anything.
 
 Read only the named PR's cache, steering files, harness evidence and GitHub review/thread data

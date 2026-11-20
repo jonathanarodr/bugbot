@@ -14,6 +14,10 @@ if [[ ${LC_ALL:-${LC_CTYPE:-${LANG:-}}} != *(UTF-8|utf8|UTF8)* ]]; then
   export LC_CTYPE=en_US.UTF-8
 fi
 
+# BUGBOT_HOME is always where this script really lives (symlinks resolved), so the bot works from
+# any clone location. The value the environment had is kept for `doctor`, and so agents, which
+# find the CLI through $BUGBOT_HOME, can be told when it points somewhere else.
+typeset -g BB_ENV_HOME=${BUGBOT_HOME:-}
 typeset -g BUGBOT_HOME=${${(%):-%x}:A:h:h}
 typeset -g BUGBOT_WORKSPACE_FILE=${BUGBOT_WORKSPACE_FILE:-$BUGBOT_HOME/workspace.json}
 typeset -g BUGBOT_DATA_DIR=${BUGBOT_DATA_DIR:-$BUGBOT_HOME/.bugbot}
@@ -57,6 +61,7 @@ Configuration (formats in schemas/):
   repos/<owner>/<name>.json  review rules per repository
 
 Environment:
+  BUGBOT_HOME             where the bot is cloned; agents find bin/bugbot through it
   BUGBOT_WORKSPACE_FILE   default: $BUGBOT_HOME/workspace.json
   BUGBOT_DATA_DIR         default: $BUGBOT_HOME/.bugbot   (disposable)
   BUGBOT_RETRO_DIR        default: $BUGBOT_HOME/retro     (permanent)"

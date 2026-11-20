@@ -11,6 +11,7 @@ candidate that will not survive verification costs a verifier run and teaches no
 
 ## Input (in the dispatch prompt)
 
+- `home` — absolute path of the bot's home; `.agents/`, `schemas/` and `bin/bugbot` are under it.
 - `finder` — the name of this run (for example `bugs-components`): also your file name.
 - `domains` — the domains you cover and their files (from `triage.json` `files[]`, with `risk`,
   `test`, `sensitive`). Empty: the whole diff.

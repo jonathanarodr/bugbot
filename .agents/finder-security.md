@@ -16,15 +16,17 @@ metadata:
 
 # finder-security
 
-Read `.agents/shared/review-rules.md` and `.agents/shared/finder-rules.md` first (relative to the
-bot's home) and follow them: input, ground rules, what not to report, candidate shape and output
+Read `.agents/shared/review-rules.md` and `.agents/shared/finder-rules.md` first (under `home`, the
+bot's absolute path from the dispatch) and follow them: input, ground rules, what not to report, candidate shape and output
 are there. This file only says what
 you look for. You are the `security` run, and your scope is the **whole diff**, whatever domains the dispatch lists.
 
 ## Instructions you read
 
-`meta.knowledge.files` with `kind: review` (`REVIEW.md`): what this team treats as sensitive. Open
-an `AGENTS.md`/`CLAUDE.md` only when it states a security rule you need to cite.
+**All** of `meta.knowledge.files`, both kinds, in the listed order: `REVIEW.md` (`kind: review`) says
+what this team treats as sensitive; `AGENTS.md`/`CLAUDE.md` (`kind: project`) say how the repository
+handles authentication, storage, networking and secrets, which is what a deviation is measured against.
+Cite the line when a finding depends on one.
 
 ## Process
 

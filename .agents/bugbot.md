@@ -32,7 +32,7 @@ reaches GitHub without the person: you show the review and post only after an ex
 | 5. Assemble | CLI `findings` | `findings.json` |
 | 6. Publish | CLI `publish`, after the person says yes | APPROVE, COMMENT or REQUEST_CHANGES |
 
-Every sub-agent reads `.agents/shared/review-rules.md` and its own file; never paste their rules
+Every dispatch carries `home`, the absolute path of the bot's home (`$HOME_BB`): a sub-agent may run in another working directory (the harness decides), so it resolves `.agents/`, `schemas/` and `bin/bugbot` against `home`, never against its current directory. Every sub-agent reads `.agents/shared/review-rules.md` and its own file; never paste their rules
 into a dispatch prompt.
 
 **Name every dispatch** after the file it writes: `bugbot:<repo name>#<number>:<output>`, with
@@ -42,10 +42,16 @@ description (Copilot logs the name, Claude Code the description), exactly, nothi
 The CLI finds each run by it in the harness's logs and records its model, effort, session and run in
 the file (`agent`); a run with another name goes unrecorded.
 
-Run every command from the bot's home. Find it once and use the absolute path:
+Run every command from the bot's home. The bot can be cloned anywhere, so never assume a folder:
+find the CLI once, from `BUGBOT_HOME` (set by the person, see the README) or else from `PATH`, and
+use the absolute path. If neither gives an executable, stop and ask the person to
+`export BUGBOT_HOME=<where the bot is cloned>`; do not search the disk for it.
 
 ```
-BB=~/Desktop/bugbot/bin/bugbot       # or `command -v bugbot`
+BB=${BUGBOT_HOME:+$BUGBOT_HOME/bin/bugbot}
+[ -x "${BB:-}" ] || BB=$(command -v bugbot)   # empty: stop and ask for BUGBOT_HOME
+HOME_BB=$($BB config --json | python3 -c 'import json,sys;print(json.load(sys.stdin)["paths"]["BUGBOT_HOME"])')
+cd "$HOME_BB"                                  # the bot's home: every relative path below is under it
 $BB doctor --quick --offline         # stop if it reports a failure; report it, do not work around it
                                      # (--quick skips comparing repo configs with clones: that is the person's full `doctor`)
 $BB config --json                    # settings in use: review.parallel, review.max_prs, paths
@@ -91,7 +97,7 @@ $BB triage <pr> --no-confirm --json     # triage.json: what the rules say; nothi
   straight to §5, which carries the previous findings. `capped`: past `review.max_rounds`, review
   nothing and report the round note, which suggests reconsidering the approach with the author.
   Never add `--full` on your own.
-- Dispatch the **`triage`** sub-agent (`.agents/triage.md`) with `pr`, `bugbot` (the absolute path
+- Dispatch the **`triage`** sub-agent (`.agents/triage.md`) with `pr`, `home`, `bugbot` (the absolute path
   of `$BB`), and the paths of `triage.json` and `meta.json`. It reads the change and records, through
   `triage --assess`, whether the rules' weight fits this PR: keep, raise, or lower one level (never
   below a `sensitive` floor). It also writes `preflight.json` next to `findings.json`: a plan, read
@@ -136,8 +142,7 @@ sub-agents, all at once; each writes its own candidates file, so they never coll
 
 Each dispatch prompt carries only: `finder` (the run name: `bugs-<domain>`, `security`,
 `convention`, `cross-domain`), `domains` with their files from `triage.json` (`risk`, `test`,
-`sensitive`), the path of `meta.json`, the path of `triage.json`, `depth`, `scope`, and the bot's
-home as working directory. A sub-agent inherits your tools, not this conversation.
+`sensitive`), the path of `meta.json`, the path of `triage.json`, `depth`, `scope`, and `home`. A sub-agent inherits your tools, not this conversation.
 
 On a `delta` round, dispatch only the finders whose domains have files in `meta.delta.files`
 (`finder-security` and `finder-convention` whenever the delta is not empty).
@@ -158,7 +163,7 @@ candidate in every candidates file, all at once. A PR with no candidates goes st
 | deep | 2, and a third (`v3`) when the first two disagree |
 
 Each dispatch prompt carries only: `finder`, `index`, `verifier` (`v1`, `v2`, `v3`), the path of
-`meta.json`, the skills the finder had (if any), and the bot's home as working directory. Never the
+`meta.json`, and `home`. Never the
 finder's reasoning, the other candidates or the other verdicts: independence is the point. To check a
 duplicate, add the candidates of other finders on the same file and nearby lines as possible
 duplicates, each as `<finder>/<index>` with its title.
@@ -197,7 +202,7 @@ The review goes out only through the CLI, only after the person reads it and say
    the findings or the translation to get past it.
 4. After a successful publish, read `retro.auto_on_approve` from `$BB config --json`. When the
    posted GitHub event was `APPROVE` and the setting is true, dispatch `.agents/retro.md` for this
-   PR immediately, without asking. Pass `pr`, the absolute `$BB` path and `trigger=auto_approve`.
+   PR immediately, without asking. Pass `pr`, `home`, the absolute `$BB` path and `trigger=auto_approve`.
    This applies only to an approval posted by this run, not approvals by other reviewers or a dry
    run. The agent follows the `bugbot-retro` skill and appends its concise, code-free report with
    `$BB retro record <pr> --trigger auto_approve` before this run ends. If the retro fails or cannot

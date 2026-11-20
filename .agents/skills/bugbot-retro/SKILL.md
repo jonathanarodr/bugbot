@@ -3,11 +3,10 @@ name: bugbot-retro
 description: >
   Retrospective of a bugbot review run: reads what the triage, finders and verifiers wrote for one
   or more pull requests, the harness session behind them and what the person did with the review,
-  and proposes changes to the bot (CLI, agents, skills, rules, repo config). Run only when the person
+  and proposes changes to the bot (CLI, agents, rules, repo config). Run only when the person
   requests it or the bugbot orchestrator dispatches it; nothing is applied without approval. Use
-  when the person asks for a retro, post-mortem or
-  calibration of a bugbot review, or when the bugbot orchestrator invokes it after publishing an
-  APPROVE and `retro.auto_on_approve` is enabled.
+  when the person asks for a retro, post-mortem or calibration of a bugbot review, or when the bugbot
+  orchestrator invokes it after publishing an APPROVE and `retro.auto_on_approve` is enabled.
 disable-model-invocation: true
 metadata:
   author: bugbot
@@ -24,14 +23,20 @@ re-review the pull request and you change no bot code or configuration: every ca
 proposal the person approves. Persist the concise report in the permanent retro record so cleanup
 cannot erase the learning.
 
-Scope: one review round per pull request, read from the cache (`.bugbot/cache/`). The aggregate
+Scope: one review round per pull request, read from the cache (`BUGBOT_DATA_DIR/cache/`; the folder of each PR is in its `meta.json` → `paths`).
+
+Find the CLI first and use it by absolute path (`$BB` below): the one the caller gave; else
+`$BUGBOT_HOME/bin/bugbot`; else `command -v bugbot`; else stop and ask for `BUGBOT_HOME`. The bot's
+files named below (`.agents/`, `schemas/`, `repos/`, `bugbot.json`) are under its home, `paths.BUGBOT_HOME`
+in `$BB config --json`, which also gives `BUGBOT_DATA_DIR` and `BUGBOT_RETRO_DIR`; never resolve them
+against the current directory. The aggregate
 retro across many pull requests (`retro/` and the `bugbot retro` command) does not exist yet; do
 not infer trends from one round.
 
 ## Steps
 
 1. **Pick the rounds.** The pull requests the person names (URL, `owner/name#N`). None named: the
-   ones the bugbot agent reviewed in the current session; none: ask. Run `bin/bugbot findings <pr>
+   ones the bugbot agent reviewed in the current session; none: ask. Run `$BB findings <pr>
    --all --no-color` for each; a missing `findings.json` means the review did not finish, which is
    itself a candidate (*Run*).
 
@@ -39,7 +44,7 @@ not infer trends from one round.
    `triage.json` (tier, depth, scope, `rounds[]` with the agent's and the person's decision),
    `preflight.json`, `candidates/*.json`, `verdicts/*.json`, `findings.json` and, on a later round,
    `previous-findings.json`. The schemas in `schemas/` and README **Schemas** say what each field
-   means. Read the agent that wrote a file (`.agents/<name>.md` and its skills) before judging it.
+   means. Read the agent that wrote a file (`.agents/<name>.md`) before judging it.
 
 3. **Read the session**, only to explain a candidate from step 2. Each output's `agent.session` is
    the harness session and `agent.run` the sub-agent's id in it; its log has the dispatch named `bugbot:<repo name>#<N>:<output>` (README
@@ -62,13 +67,13 @@ not infer trends from one round.
    The share of `wrong` + `intended` + `not worth it` among answered findings is the round's noise.
 
 5. **Read the steering that ran the round**: the agents that wrote its files (`.agents/*.md`), the
-   shared rules (`.agents/shared/`), the domain skills of the domains in scope, the repo's config
-   (`repos/<owner>/<name>.json`), `bugbot.json` and the repo's `REVIEW.md` and knowledge sources.
+   shared rules (`.agents/shared/`), the repo's config
+   (`repos/<owner>/<name>.json`), `bugbot.json` and the repo's knowledge sources (`REVIEW.md`, `AGENTS.md`, `CLAUDE.md` in `meta.knowledge`).
    Audit them against what the round did, not in the abstract: a rule the round needed and no file
    had, a rule an agent broke or followed into a wrong result, two files that say the same or the
    opposite, an instruction the CLI already enforces or could, a domain whose globs missed a changed
-   file or caught one it should not, a domain without a skill, a tier or depth floor the round
-   argued against. Run `bin/bugbot doctor --offline --no-color` (without `--quick`: it reports globs
+   file or caught one it should not, a domain no knowledge file covers, a tier or depth floor the round
+   argued against. Run `$BB doctor --offline --no-color` (without `--quick`: it reports globs
    that match no file) and use its warnings as evidence.
 
 6. **Look for candidates** in the categories below. Each needs evidence you can point at: a file and
@@ -90,7 +95,7 @@ not infer trends from one round.
    null), and `disposition` (`proposal`, `watch`, or `none`). For a manual invocation use
    `--trigger manual`; when invoked after a published approval use `--trigger auto_approve`:
 
-   Resolve the CLI path first (`~/Desktop/bugbot/bin/bugbot`, or `command -v bugbot`), then run:
+   With the CLI found above, run:
 
    ```sh
    $BB retro record <pr> --trigger auto_approve <<'JSON'
@@ -130,11 +135,11 @@ not infer trends from one round.
   than the frontmatter's, a finder reading files outside its scope. _Use when_ a run cost more than
   its output.
 - **Instructions**: from step 5, a rule missing, broken, followed into a wrong result, repeated or
-  contradicted across `.agents/` and skills, or one the CLI could enforce; an instruction that did
+  contradicted across `.agents/`, or one the CLI could enforce; an instruction that did
   not change what the agent did. _Use when_ an agent's behavior traces back to its text.
 - **Config**: from step 5, a domain, glob, tier, depth floor, exclude or knowledge source in
-  `repos/*.json` or `bugbot.json` that put the wrong files or effort on the round; a domain with no
-  skill or a `REVIEW.md` rule no finder could quote; `review.max_lows` cutting Lows (audit reason
+  `repos/*.json` or `bugbot.json` that put the wrong files or effort on the round; a changed area no
+  `REVIEW.md`/`AGENTS.md` covers, or a rule no finder could quote; `review.max_lows` cutting Lows (audit reason
   `over review.max_lows`) on a round whose posted Lows the person ignored, or never reached. _Use
   when_ the round's shape came from config, not from judgement.
 - **Run**: a command that failed, an output the schema refused, a step the orchestrator skipped or
@@ -159,12 +164,12 @@ for a rule change, say it is a single case and propose watching it instead of ch
 | Anything deterministic: paths, counts, filters, derived fields, checks | the CLI (`bin/bugbot`, `lib/`) and its schema in `schemas/` |
 | What a repo reviews and how deep | `repos/<owner>/<name>.json` (domains, tiers, globs) |
 | A repo's own rules and conventions | its `REVIEW.md` (proposed to the repo's owners, not edited here) |
-| What is correct in a stack | the domain skill in `.agents/skills/<name>-reviewer/` |
+| What is correct in a repo's stack | its `AGENTS.md`/`CLAUDE.md` (proposed to the repo's owners, not edited here) |
 | How every finder raises a candidate | `.agents/shared/finder-rules.md`, or the finder's own file |
 | How every review output is written | `.agents/shared/review-rules.md` |
 | How a candidate is judged | `.agents/verifier.md` |
 | Weight, scope and preflight of a pull request | `.agents/triage.md` |
 | Order of the run, dispatch, report | `.agents/bugbot.md` |
 
-Prefer the narrowest file: a rule for one stack goes in its domain skill, not in the shared rules.
+Prefer the narrowest file: a rule for one repository goes in its own `REVIEW.md` or `AGENTS.md`, not in the shared rules; the bot itself holds no stack knowledge.
 Before adding text, look for the instruction it would repeat or contradict.

@@ -11,7 +11,7 @@ bb_doctor_usage() {
 
 Check that the bot is healthy, without changing anything:
   format        bot JSON files follow .editorconfig ('bugbot format' fixes)
-  environment   tools, versions, gh login, token overrides
+  environment   tools, versions, BUGBOT_HOME, gh login, token overrides
   settings      bugbot.json and bugbot.local.json against their schema
   schemas       every schema loads with the bundled validator
   workspace     workspace.json is valid, clones exist, remotes still match
@@ -56,7 +56,7 @@ bb_cmd_doctor() {
     return 1
   fi
 
-  args=(--home "$BUGBOT_HOME" --workspace "$BUGBOT_WORKSPACE_FILE" --data-dir "$BUGBOT_DATA_DIR")
+  args=(--home "$BUGBOT_HOME" --env-home "$BB_ENV_HOME" --workspace "$BUGBOT_WORKSPACE_FILE" --data-dir "$BUGBOT_DATA_DIR")
   [[ -n $only ]] && args+=(--only "$only")
   [[ $quick == true ]] && args+=(--quick)
   [[ $offline == true ]] && args+=(--offline)

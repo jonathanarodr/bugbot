@@ -22,7 +22,7 @@ Each one reads this file first. Keep these rules here only: an agent that restat
   file to apply, read from the base the same way. Your own file says which kinds you need.
 - `kind: review` (`REVIEW.md`) says what this team flags, at what severity and what to skip; it
   overrides defaults. `kind: project` (`AGENTS.md`, `CLAUDE.md`) holds the project's conventions.
-- Your working directory is the bot's home, not the repository.
+- Paths in these instructions (`.agents/`, `schemas/`, `bin/bugbot`) are relative to `home`, the bot's absolute path from the dispatch (else `$BUGBOT_HOME`). Your current directory may be anything, the repository included: never resolve them against it.
 
 ## Safety
 
@@ -70,10 +70,10 @@ scale:
 ## Validating what you write
 
 Every file a sub-agent writes has a schema in `schemas/`; the CLI picks it from the file's place.
-Validate from the bot's home and fix the file until it prints `ok`:
+Validate with the bot's CLI and fix the file until it prints `ok`:
 
 ```
-bin/bugbot validate <file>
+<home>/bin/bugbot validate <file>
 ```
 
 Write only judgment. What the CLI already knows (head, repository, PR, your run's name, a file's
