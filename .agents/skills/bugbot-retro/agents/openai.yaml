@@ -1,0 +1,5 @@
+interface:
+  display_name: "Bugbot Retro"
+  short_description: "Retrospect a Bugbot review round and propose improvements to the bot."
+policy:
+  allow_implicit_invocation: false
