@@ -94,8 +94,13 @@ def quote(label):
     return f'"{label}"'
 
 
-def build_query(hooks, repos, today=None):
-    terms = ["is:pr", "is:open", "archived:false", "review-requested:@me", "-author:@me"]
+def build_query(hooks, repos, today=None, app=False):
+    """Search for the repositories of one identity. As the person: PRs whose review was requested
+    from them. As the GitHub App (app=True): an App has no review requests, so every open PR of its
+    repositories, narrowed by the hooks (labels.trigger is the opt-in gate)."""
+    terms = ["is:pr", "is:open", "archived:false"]
+    if not app:
+        terms += ["review-requested:@me", "-author:@me"]
     if not hooks["draft"]:
         terms.append("draft:false")
     if hooks["stale_days"]:
@@ -108,9 +113,34 @@ def build_query(hooks, repos, today=None):
     return " ".join(terms)
 
 
-def search(query):
-    command = ["gh", "api", "graphql", "--paginate", "--slurp", "-f", f"query={GRAPHQL}", "-f", f"q={query}"]
+def gh_env(identity=None):
+    """Environment for gh: the person's (inherited), or the App's token and isolated config."""
     env = dict(os.environ, GH_NO_UPDATE_NOTIFIER="1", GH_PROMPT_DISABLED="1")
+    if identity:
+        env.pop("GITHUB_TOKEN", None)
+        env.update(identity)
+    return env
+
+
+def app_identity():
+    """The App's gh environment and bot login, as inbox.sh exported them; None without an App."""
+    token = os.environ.get("BB_APP_GH_TOKEN")
+    if not token:
+        return None, None, ""
+    return ({"GH_TOKEN": token, "GH_CONFIG_DIR": os.environ["BB_APP_GH_DIR"], "GH_HOST": "github.com"},
+            os.environ["BB_APP_LOGIN"], os.environ.get("BB_APP_OWNER", ""))
+
+
+def split_repos(repos, owner):
+    if not owner:
+        return repos, []
+    mine = [r for r in repos if r.split("/", 1)[0].lower() == owner.lower()]
+    return [r for r in repos if r not in mine], mine
+
+
+def search(query, identity=None):
+    command = ["gh", "api", "graphql", "--paginate", "--slurp", "-f", f"query={GRAPHQL}", "-f", f"q={query}"]
+    env = gh_env(identity)
     result = subprocess.run(command, capture_output=True, text=True, env=env)
     if result.returncode != 0:
         fail("search failed: " + (result.stderr.strip().splitlines() or ["gh exited " + str(result.returncode)])[-1])
@@ -121,8 +151,8 @@ def search(query):
     return [node for page in pages for node in page["data"]["search"]["nodes"] if node]
 
 
-def gh_graphql(query):
-    env = dict(os.environ, GH_NO_UPDATE_NOTIFIER="1", GH_PROMPT_DISABLED="1")
+def gh_graphql(query, identity=None):
+    env = gh_env(identity)
     result = subprocess.run(["gh", "api", "graphql", "-f", f"query={query}"], capture_output=True, text=True, env=env)
     try:
         data = json.loads(result.stdout or "{}")
@@ -133,7 +163,7 @@ def gh_graphql(query):
     return data.get("data") or {}, None
 
 
-def required_checks(prs):
+def required_checks(prs, identity=None):
     """{(repo, number): (checks, error)} with checks as [{"name", "bucket"}] of the required ones,
     the latest run per name, as `gh pr checks --required` reports them."""
     out = {}
@@ -144,7 +174,7 @@ def required_checks(prs):
             owner, name = repo.split("/", 1)
             parts.append(f"p{index}: repository(owner: {json.dumps(owner)}, name: {json.dumps(name)}) "
                          f"{{ pullRequest(number: {int(number)}) {{ {CONTEXTS % {'n': int(number)}} }} }}")
-        data, error = gh_graphql("query { " + " ".join(parts) + " }")
+        data, error = gh_graphql("query { " + " ".join(parts) + " }", identity)
         for index, key in enumerate(chunk):
             node = ((data or {}).get(f"p{index}") or {}).get("pullRequest")
             if error or not node:
@@ -256,29 +286,46 @@ def listing(args):
     repos = [line.split("\t", 1)[0] for line in open(args.repos, encoding="utf-8") if line.strip()]
     if not repos:
         fail("no enabled repository in the workspace: run 'bugbot setup'")
-    query = build_query(hooks, repos)
-    nodes = search(query)
-
-    me = gh_json("user", "--jq", "{login: .login}")[0]["login"]
-    teams = [t for page in gh_json("--paginate", "user/teams", "--jq", "[.[] | .organization.login + \"/\" + .slug]")
-             for t in page]
+    # Two identities: the person for most repositories, the GitHub App for its owner's (github.app).
+    app_env, app_login, app_owner = app_identity()
+    user_repos, app_repos = split_repos(repos, app_owner if app_env else "")
+    groups, queries = [], []
+    if user_repos:
+        me = gh_json("user", "--jq", "{login: .login}")[0]["login"]
+        teams = [t for page in gh_json("--paginate", "user/teams", "--jq", "[.[] | .organization.login + \"/\" + .slug]")
+                 for t in page] if hooks["exclude_teams"] else []
+        queries.append(build_query(hooks, user_repos))
+        groups.append((search(queries[-1]), None, me, teams))
+    if app_repos:
+        queries.append(build_query(hooks, app_repos, app=True))
+        groups.append((search(queries[-1], app_env), app_env, app_login, []))
+    query = " | ".join(queries)
+    me = groups[0][2]
+    nodes, who = [], {}
+    for found, identity, login, member_of in groups:
+        for node in found:
+            nodes.append(node)
+            who[(node["repository"]["nameWithOwner"], node["number"])] = (identity, login, member_of)
 
     # First pass without CI, then required checks only for the PRs still in, then the full pass:
     # the hooks decide in their own order either way, this only saves reading checks.
-    survivors = [node for node in nodes
-                 if evaluate(node, hooks, args.home, me, teams)[0] == "review"
-                 and node["headRefOid"] not in decided_heads(args.data_dir, node["repository"]["nameWithOwner"], node["number"])]
-    checks = required_checks([(n["repository"]["nameWithOwner"], n["number"]) for n in survivors])
+    checks = {}
+    for found, identity, login, member_of in groups:
+        survivors = [node for node in found
+                     if evaluate(node, hooks, args.home, login, member_of)[0] == "review"
+                     and node["headRefOid"] not in decided_heads(args.data_dir, node["repository"]["nameWithOwner"], node["number"])]
+        checks.update(required_checks([(n["repository"]["nameWithOwner"], n["number"]) for n in survivors], identity))
 
     now = datetime.datetime.now(datetime.timezone.utc)
     items, hidden = [], []
     for node in nodes:
         repo = node["repository"]["nameWithOwner"]
         key = (repo, node["number"])
+        _identity, login, member_of = who[key]
         outcome, rule, reason, requested, reviewers, limit, ci = evaluate(
-            node, hooks, args.home, me, teams, checks.get(key))
+            node, hooks, args.home, login, member_of, checks.get(key))
         commit = head_commit(node)
-        direct = any(r.lower() == me.lower() for r in requested)
+        direct = any(r.lower() == login.lower() for r in requested)
         item = {
             "repo": repo, "pr": node["number"], "title": node["title"], "url": node["url"],
             "author": (node.get("author") or {}).get("login"), "head": node["headRefOid"],
@@ -321,7 +368,10 @@ def query_cmd(args):
     with open(args.hooks, encoding="utf-8") as handle:
         hooks = json.load(handle)
     repos = [line.split("\t", 1)[0] for line in open(args.repos, encoding="utf-8") if line.strip()]
-    print(build_query(hooks, repos))
+    user_repos, app_repos = split_repos(repos, os.environ.get("BB_APP_OWNER", ""))
+    queries = ([build_query(hooks, user_repos)] if user_repos else []) + \
+              ([build_query(hooks, app_repos, app=True)] if app_repos else [])
+    print(" | ".join(queries))
 
 
 def rows(args):

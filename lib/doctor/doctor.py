@@ -105,6 +105,41 @@ def check_environment(offline, home, env_home):
         row(group, "fail", "gh auth", (err or out or "not authenticated").splitlines()[0])
 
 
+def check_app(home, workspace, data_dir, offline):
+    """github.app: the Keychain key signs, the App and installation are the configured ones, and a
+    token for the workspace repositories of the owner has the permissions the bot needs."""
+    group = "environment"
+    import settings
+    try:
+        values = {path: value for path, _e, _l, value, _o in settings.resolve_quietly(home)}
+    except (settings.SettingsError, schema.SchemaError):
+        return  # the settings group reports it
+    if not int(values.get("github.app.id") or 0):
+        return
+    owner = values.get("github.app.owner") or ""
+    if offline:
+        row(group, "warn", "GitHub App", f"{values.get('github.app.slug')} on {owner}: not checked (--offline)")
+        return
+    try:
+        with open(workspace, encoding="utf-8") as handle:
+            repos = [r for r, e in json.load(handle).get("repos", {}).items()
+                     if r.split("/", 1)[0].lower() == owner.lower() and e.get("enabled", True)]
+    except (OSError, ValueError):
+        repos = []
+    cmd = [sys.executable, os.path.join(home, "lib", "core", "app.py"), "check", "--owner", owner,
+           "--app-id", str(values["github.app.id"]), "--installation-id", str(values["github.app.installation_id"]),
+           "--keychain-service", values["github.app.keychain_service"], "--slug", values["github.app.slug"],
+           "--cache-dir", os.path.join(data_dir, "state", "app")]
+    for repo in repos:
+        cmd += ["--repo", repo]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    for line in result.stdout.splitlines():
+        status, label, detail = (line.split("\t") + ["", ""])[:3]
+        row(group, status, f"GitHub App {label}", detail)
+    if result.returncode != 0 and not result.stdout:
+        row(group, "fail", "GitHub App", (result.stderr.strip().splitlines() or ["app.py failed"])[-1])
+
+
 # ── settings ───────────────────────────────────────────────────────────────────
 
 # ── format ────────────────────────────────────────────────────────────────────────────────
@@ -521,6 +556,7 @@ def main():
         check_format(args.home, args.workspace)
     if wanted("environment"):
         check_environment(args.offline, args.home, args.env_home)
+        check_app(args.home, args.workspace, args.data_dir, args.offline)
     if wanted("settings"):
         check_settings(args.home)
     if wanted("schemas") or wanted("docs"):

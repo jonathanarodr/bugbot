@@ -83,6 +83,7 @@ def load(path):
                        "local_exec": s.get("local_exec", "allow")} for s in data.get("sensitive", [])],
         "tests": [Glob(g) for g in data.get("tests", [])],
         "ignore": [Glob(g) for g in data.get("ignore", [])],
+        "approve_deny": [Glob(g) for g in data.get("approve_deny", [])],
         "large_diff": data.get("large_diff"),
         "hooks": data.get("hooks", {}),
     }

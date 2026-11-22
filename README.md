@@ -86,7 +86,7 @@ Every command has `--help` and `--no-color`; the ones that write have `--plan` (
 |---|---|---|
 | `init` | Creates `bugbot.json` with the initial value of every setting (`x-init` in the settings schema); the org is optional, from `--org` or `BUGBOT_ORG`, never from code (without it, `setup` offers every owner). Does not overwrite without `--force` | `--org`, `--force`, `--print` |
 | `setup` | Scans the machine for GitHub clones (only of `github.org` when it is set), picks one canonical clone per repo, writes `workspace.json` and creates the missing `repos/*.json` | `--root`, `--depth`, `--all`, `--yes`, `--remote`, `--plan`, `--json` |
-| `inbox` | Lists PRs whose review was requested from you (directly or through a team) in the workspace repos, already filtered by the hooks; the chosen ones go through `fetch` and `triage` | `--list`, `--hidden`, `--json`, `--query` |
+| `inbox` | Lists PRs whose review was requested from you (directly or through a team) in the workspace repos, and, with `github.app`, the open PRs of the App's repositories; already filtered by the hooks; the chosen ones go through `fetch` and `triage` | `--list`, `--hidden`, `--json`, `--query` |
 | `fetch <pr>` | Brings the PR to the machine: `diff.patch`, `files.txt`, `meta.json` in the cache; refs under `refs/bugbot/` in the clone (the clone's branch and files do not change) | `--repo`, `--worktree`, `--plan`, `--json` |
 | `triage <pr>` | Computes tier, suggested depth, scope and the round scope (full, delta, unchanged, capped) from the files and the PR state; runs the hooks; shows the card and records your decision per sha, pinning the reviewed head for the next round's delta. `--assess` records the `triage` agent's second opinion | `--repo`, `--depth`, `--no-confirm`, `--force`, `--full`, `--assess <tier> <depth> --reason`, `--json` |
 | `validate <file>` | Validates a JSON file an agent wrote against its schema, inferred from where the file is (`candidates/`, `verdicts/`, `<name>.json`). It is what the agents run before replying | `--schema` |
@@ -527,6 +527,12 @@ Conventions shared by all:
 ```
 github
   org                 string   optional owner (organization or user); empty or absent = any owner; init writes it only with --org   BUGBOT_ORG
+  app                          GitHub App the bot acts as on one owner's repositories; off while id is 0
+    owner             string   account the App is installed on; only its repositories use the App   BUGBOT_APP_OWNER
+    id                integer  ≥ 0  the App's ID                                                    BUGBOT_APP_ID
+    installation_id   integer  ≥ 0  the installation on owner                                        BUGBOT_APP_INSTALLATION_ID
+    slug              string   reviews are posted, and recognized, as <slug>[bot]                    BUGBOT_APP_SLUG
+    keychain_service  string   macOS Keychain service with the base64 private key                    BUGBOT_APP_KEYCHAIN_SERVICE
 scan
   roots               string[] ≥ 1 item; ~ = home of whoever runs it  BUGBOT_SCAN_ROOTS
   depth               integer  1–8; counted to the clone's .git: 5 finds ~/a/b/c/repo  BUGBOT_SCAN_DEPTH
@@ -577,6 +583,14 @@ hooks                          whether the PR is reviewed, decided before the ca
 - In the environment, a list is a JSON array (`BUGBOT_SCAN_ROOTS='["~/a", "/tmp/x y"]'`); a plain value becomes a one-item list and is never split on commas.
 - Derived paths (`BUGBOT_HOME`, `BUGBOT_WORKSPACE_FILE`, `BUGBOT_DATA_DIR`, `BUGBOT_RETRO_DIR`) are not here: environment only. `BUGBOT_HOME` is never read by the CLI, which always uses its own location; it is how agents find the CLI.
 - Without `bugbot.json`, every command except `init`, `doctor`, `format` and `validate` stops with `bugbot.json not found: run 'bugbot init'`.
+
+**GitHub App** (`github.app`). Off by default: every call uses the person's `gh` login and reviews go out as them. With `id` set, the repositories of `owner` are read and written **only as the App**, and its reviews are posted as `<slug>[bot]`; repositories of other owners keep using the `gh` login.
+- **Token:** `lib/core/app.py` signs a JWT with the App key and asks the installation for a token scoped to the repositories in use. The key comes from the macOS Keychain (`keychain_service`, stored base64-encoded) and goes from `security` to `openssl` through pipes: never on disk, in argv or in output. Tokens are cached with mode `0600` in `BUGBOT_DATA_DIR/state/app/` and reused while they have more than five minutes left.
+- **No fallback:** the token goes into `GH_TOKEN` with `GH_CONFIG_DIR` pointing at an empty folder, so a failed mint stops the command instead of acting as the person.
+- **Where:** `fetch`, `triage`, `publish` and `clean` switch to the App when the PR's repository belongs to `owner`; `inbox` searches those repositories with the App token. `setup` stays local and uses the `gh` login.
+- **`review.author`:** `@me` means the App on its owner's repositories and the `gh` login elsewhere; any other value must be `<slug>[bot]`.
+- **Inbox:** an App has no review requests, so for its repositories the inbox lists every open PR, narrowed by the hooks; `hooks.labels.trigger` is the opt-in gate (`doctor` warns when it is empty). `exclude_teams` needs the person's teams and is refused while `github.app` is set.
+- **Setting it up:** create the App with `Pull requests: write`, `Contents: read`, `Checks: read` and `Commit statuses: read`, install it on the owner, then store the key once: `security add-generic-password -U -s <service> -a "$USER" -w "$(base64 -i key.pem)"` and delete the `.pem`. Rotating is the same command with a new key, then revoking the old one in the App's settings. `bugbot doctor` (group `environment`) signs a JWT, checks the App's slug and the installation's owner, mints a token for the workspace repositories and lists any missing permission.
 
 **Hooks** (inspired by Renovate: `stopUpdatingLabel` → `labels.skip`, `rebaseLabel` → `labels.trigger`, `prCreation: status-success` / `ignoreTests` → `ci: passed | any`). One scalar key per behavior, no rule list. Evaluated in the order draft → stale_days → exclude_teams → labels.skip → labels.trigger → reviewers.max → ci; the first one that applies decides `review`, `skip` or `wait`.
 - **Every hook applies to every tier.** The configuration is explicit: if `labels.skip` or `reviewers.max` skip a high PR, that is a risk taken by the configuration, not something the code silently undoes. (An earlier version exempted the high tier; it was removed for that reason.)
@@ -663,6 +677,7 @@ sensitive           array         files that take the PR to high with a deep flo
     local_exec      allow|deny    deny = a PR touching the file runs no local check (default allow)
 tests               glob[]        test files: outside risk, size and sensitive
 ignore              glob[]        neither counted nor reviewed (generated output, vendored)
+approve_deny        glob[]        never APPROVE a PR touching these: a clean review is posted as COMMENT
 domains             array         ORDERED: the first match wins; absent = everything medium, scope by top-level folder (as a slug: `Modules` → `modules`, root → `root`)
   []
     name*           string        ^[a-z][a-z0-9-]{0,30}$
@@ -707,6 +722,7 @@ Globs: `**` crosses directories, `*` and `?` stay within a segment, a trailing s
 ```
 
 **Particulars**
+- `approve_deny` is for files whose change a person should approve however clean the review was: security boundaries (database and storage rules), the CI supply chain, build plugins and the instructions the reviewer is judged by. A `PASS` on a PR touching one goes out as `COMMENT`, with the status "LGTM, approval left to a person" and the file named; the verdict and the retro trigger stay as they are (no `APPROVE` was posted). `doctor` checks its globs against the clone like the other groups.
 - `hooks` is **a choice, not a detection**: the generator never proposes it. Precedence of a hook: repo config > `bugbot.json` (which in turn may come from the environment). So `BUGBOT_HOOKS_REVIEWERS_MAX` changes the global default, but not the value a repo pinned. `triage.json` records in `hooks.config.overrides` where the value came from.
 - `domains` is a list and not an object because order decides (a JSON object does not guarantee order). Tip: a `docs` domain first makes a README inside any folder count as docs; a `root` (`*`) last catches files at the root.
 - Without a file, or with every group empty, the effect is the same: everything medium (high above `large_diff`), no floor, scope by top-level folder, and the card warns.
@@ -1090,7 +1106,7 @@ tldr                the review's summary paragraph, two sentences at most
 findings            {F1: {title, explanation}, ...}   by findings.json id
 text                fixed body texts, by key: heading, pass_tldr, unchanged_tldr,
                     findings_line, findings_line_first, scope_line, pre_existing, plausible,
-                    rule, outside_title, outside_note, footer
+                    rule, outside_title, outside_note, footer, approve_denied_status, approve_denied
 ```
 
 **Particulars**
@@ -1137,6 +1153,8 @@ bugbot inbox --hidden    also shows what the hooks hid, and why
 bugbot inbox --json      inbox.json on stdout
 bugbot inbox --query     only the search string that was built
 ```
+
+**With a GitHub App** (`github.app`), the App's repositories are searched apart, with its token and without `review-requested:@me` (an App has no review requests): every open PR there, narrowed by the hooks, with `labels.trigger` as the opt-in gate. `--query` shows both searches separated by ` | `.
 
 **Who counts as "requested from you"**: GitHub's `review-requested:@me`, that is, requested by name **or** from any team of yours (CODEOWNERS or a manual request). Your own PRs never show up (`-author:@me`). In a monorepo most requests arrive through a team (CODEOWNERS): that is what `exclude_teams` is for.
 
@@ -1197,7 +1215,7 @@ bugbot publish <pr> --yes         posts without asking (the same checks run)
 5. Language: with `review.language` other than English, uses `translate.json` (or warns and posts in English).
 6. Builds the payload and runs it through the secret gate.
 7. Shows the preview and asks for confirmation; `--dry-run` stops here.
-8. `POST repos/{repo}/pulls/{pr}/reviews` with the event derived from the verdict: `REQUEST_CHANGES` for a new Critical/High; `COMMENT` for Medium or a pre-existing Critical/High; `APPROVE` for only Low or no finding. The preview shows the event and it is only sent after explicit confirmation.
+8. `POST repos/{repo}/pulls/{pr}/reviews` with the event derived from the verdict: `REQUEST_CHANGES` for a new Critical/High; `COMMENT` for Medium or a pre-existing Critical/High; `APPROVE` for only Low or no finding, unless the PR touches the repo's `approve_deny` (then `COMMENT`). The preview shows the event and it is only sent after explicit confirmation.
 9. Minimizes the previous review as `OUTDATED` only when this round looked at nothing and neither did the previous one (`SKIPPED` or `INVALID_INVOCATION`). Inline threads are never minimized.
 
 **Review body**
@@ -1252,7 +1270,7 @@ Exit: `0` posted (or dry run), `1` failure (network, gh, cancelled), `2` usage o
 | Group | Checks | Failure (■) | Warning (▲) |
 |---|---|---|---|
 | `format` | `bugbot.json`, `bugbot.local.json`, `workspace.json`, `schemas/*.json`, `repos/*/*.json` follow the code style | — | outside the code style (`run 'bugbot format'`); invalid JSON (the group that reads the file reports it) |
-| `environment` | `python3` ≥ 3.9, `git`, `gh`, `zsh` and versions; `BUGBOT_HOME`; `gh` login | missing tool, `BUGBOT_HOME` pointing at another copy of the bot, `gh` not logged in | old version; `BUGBOT_HOME` not set (agents fall back to `PATH`, or cannot find the CLI); `GH_TOKEN`/`GITHUB_TOKEN` in the environment overriding the login |
+| `environment` | `python3` ≥ 3.9, `git`, `gh`, `zsh` and versions; `BUGBOT_HOME`; `gh` login; with `github.app`, the App key, App, installation and token permissions (skipped with `--offline`) | missing tool, `BUGBOT_HOME` pointing at another copy of the bot, `gh` not logged in; App key missing, wrong slug or owner, no `pull_requests: write` | old version; `BUGBOT_HOME` not set (agents fall back to `PATH`, or cannot find the CLI); `GH_TOKEN`/`GITHUB_TOKEN` in the environment overriding the login |
 | `settings` | `init` can build a valid `bugbot.json` (every setting has an `x-init` or a `default`); `bugbot.json` and `bugbot.local.json` against the schema; then the **effective** values (files + environment) and the cross-field rules | a setting without an initial value; `bugbot.json` missing (`run 'bugbot init'`); invalid file; invalid value from the environment; the same label in `hooks.labels.skip` and `trigger` | no `$schema`; the same label with a different case |
 | `schemas` | every schema loads with the validator | unsupported keyword, invalid JSON | does not declare Draft 2020-12 |
 | `workspace` | `workspace.json` valid; each clone exists and its remote still points at the repo; each repo's default branch matches GitHub's (one GraphQL query for all; skipped with `--offline`) | clone gone, remote changed | no default branch, default branch different from GitHub's (`run 'bugbot setup'`), no `$schema`, comparison with GitHub not made |

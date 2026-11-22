@@ -83,6 +83,8 @@ bb_cmd_fetch() {
     return 0
   fi
 
+  bb_app_use "$BB_FETCH_REPO" || { bb_say_close "${c_red}cannot act as the GitHub App on $BB_FETCH_REPO${c_reset}"; return 1 }
+
   if ! bb_lock "$lock"; then
     bb_say_close "${c_red}$BB_FETCH_REPO#$BB_FETCH_PR is in use by another process${c_reset} (pid $REPLY)"
     return 1

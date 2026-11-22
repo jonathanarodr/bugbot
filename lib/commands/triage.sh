@@ -87,7 +87,9 @@ bb_triage_step_state() {
 
   # Who is running the bot and, for exclude_teams, which teams they are in (org/slug, like gh
   # reports review requests). A failure reading teams makes that hook unusable: hard error.
-  if (( BB_TRIAGE_REVIEWERS_MAX > 0 || ${#BUGBOT_HOOKS_EXCLUDE_TEAMS} )); then
+  if [[ -n $BB_APP_ACTIVE ]]; then
+    print -r -- "{\"login\": \"$BUGBOT_REVIEW_AUTHOR\"}" > "$BB_RUN_DIR/me.json"   # the App's bot login
+  elif (( BB_TRIAGE_REVIEWERS_MAX > 0 || ${#BUGBOT_HOOKS_EXCLUDE_TEAMS} )); then
     bb_gh api user --jq '{login: .login}' > "$BB_RUN_DIR/me.json" 2>/dev/null || print -r -- '{}' > "$BB_RUN_DIR/me.json"
   fi
   if (( ${#BUGBOT_HOOKS_EXCLUDE_TEAMS} )); then
@@ -258,6 +260,7 @@ bb_cmd_triage() {
   bb_pr_names "${reply[1]}" "${reply[2]}" || { print -u2 "bugbot triage: $REPLY"; return 2 }
 
   typeset -g BB_TRIAGE_REPO=${reply[1]} BB_TRIAGE_PR=$BB_PR_NUMBER
+  bb_app_use "$BB_TRIAGE_REPO" || { print -u2 "bugbot triage: cannot act as the GitHub App on $BB_TRIAGE_REPO"; return 1 }
   typeset -g BB_TRIAGE_META=$BUGBOT_DATA_DIR/cache/$BB_PR_PATH/meta.json
   typeset -g BB_TRIAGE_FILE=$BUGBOT_DATA_DIR/cache/$BB_PR_PATH/triage.json
   owner=${BB_PR_PATH%%/*} name=${${BB_PR_PATH#*/}%%/*}

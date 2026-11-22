@@ -90,6 +90,23 @@ bb_cmd_inbox() {
   python3 "$BUGBOT_HOME/lib/core/workspace.py" list --current "$BUGBOT_WORKSPACE_FILE" > "$BB_RUN_DIR/repos.tsv" \
     || { print -u2 "bugbot inbox: no workspace — run 'bugbot setup'"; return 1 }
 
+  # The GitHub App's repositories (github.app) are searched with the App's token, the rest with
+  # the gh login. inbox.py reads the App's identity from these variables.
+  if (( ${BUGBOT_APP_ID:-0} > 0 )); then
+    export BB_APP_OWNER=$BUGBOT_APP_OWNER BB_APP_LOGIN="${BUGBOT_APP_SLUG}[bot]"
+    local -a app_repos=()
+    local app_row=''
+    while IFS= read -r app_row; do
+      bb_app_owns "${app_row%%$'\t'*}" && app_repos+=("${app_row%%$'\t'*}")
+    done < "$BB_RUN_DIR/repos.tsv"
+    if (( ${#app_repos} )) && [[ $mode != query ]]; then
+      BB_APP_GH_TOKEN=$(bb_app_token "${app_repos[@]}") \
+        || { print -u2 "bugbot inbox: cannot act as the GitHub App on ${(j:, :)app_repos}"; return 1 }
+      bb_app_gh_dir || return 1
+      export BB_APP_GH_TOKEN BB_APP_GH_DIR=$REPLY
+    fi
+  fi
+
   if [[ $mode == query ]]; then
     python3 "$BUGBOT_HOME/lib/inbox/inbox.py" query --hooks "$BB_RUN_DIR/hooks.json" --repos "$BB_RUN_DIR/repos.tsv"
     return

@@ -45,7 +45,7 @@ bb_clean_step_states() {
 
   : > "$BB_RUN_DIR/states"
   for (( i = 1; i <= ${#BB_CL_PR}; i++ )); do
-    if res=$(bb_gh api "repos/${BB_CL_SHOW[i]}/pulls/${BB_CL_PR[i]}" \
+    if res=$(bb_gh_as "${BB_CL_SHOW[i]}" api "repos/${BB_CL_SHOW[i]}/pulls/${BB_CL_PR[i]}" \
                --jq '[.state, (.merged | tostring)] | @tsv' 2>&1); then
       print -r -- "$i"$'\t'"$res" >> "$BB_RUN_DIR/states"
     else

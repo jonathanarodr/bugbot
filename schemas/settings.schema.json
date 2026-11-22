@@ -19,6 +19,47 @@
           "pattern": "^([A-Za-z0-9][A-Za-z0-9-]*)?$",
           "default": "",
           "x-env": "BUGBOT_ORG"
+        },
+        "app": {
+          "description": "GitHub App the bot acts as for the repositories of one owner, instead of the person's gh login: every read and write on those repositories uses an installation token, and reviews are posted as <slug>[bot]. Off while id is 0. Repositories of other owners keep using the gh login.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "owner": {
+              "description": "Account (organization or user) the App is installed on; only its repositories use the App.",
+              "type": "string",
+              "pattern": "^([A-Za-z0-9][A-Za-z0-9-]*)?$",
+              "default": "",
+              "x-env": "BUGBOT_APP_OWNER"
+            },
+            "id": {
+              "description": "The App's ID (App settings → About). 0: no App, every call uses the gh login.",
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "x-env": "BUGBOT_APP_ID"
+            },
+            "installation_id": {
+              "description": "ID of the App's installation on owner (github.com/organizations/<owner>/settings/installations/<id>).",
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "x-env": "BUGBOT_APP_INSTALLATION_ID"
+            },
+            "slug": {
+              "description": "The App's slug: reviews are posted, and recognized as the bot's, as <slug>[bot].",
+              "type": "string",
+              "pattern": "^([a-z0-9][a-z0-9-]*)?$",
+              "default": "",
+              "x-env": "BUGBOT_APP_SLUG"
+            },
+            "keychain_service": {
+              "description": "macOS Keychain service holding the App's private key, base64-encoded (security add-generic-password -s <service> -a \"$USER\" -w \"$(base64 -i key.pem)\"). The key is never written to disk.",
+              "type": "string",
+              "default": "",
+              "x-env": "BUGBOT_APP_KEYCHAIN_SERVICE"
+            }
+          }
         }
       }
     },

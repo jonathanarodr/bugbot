@@ -105,6 +105,25 @@ def cross_check(resolved):
         problems.append(("fail", f"review.parallel ({parallel}) is above review.max_prs ({max_prs}): a run never "
                                  f"holds more than {max_prs} PRs, so the extra slots never run; lower parallel "
                                  "or raise max_prs"))
+    app_id = int(values.get("github.app.id") or 0)
+    if app_id:
+        missing = [key for key in ("github.app.owner", "github.app.installation_id", "github.app.slug",
+                                   "github.app.keychain_service") if not values.get(key)]
+        if missing:
+            problems.append(("fail", f"github.app.id is set but {', '.join(missing)} is not: the App needs all of "
+                                     "owner, id, installation_id, slug and keychain_service"))
+        bot = f"{values.get('github.app.slug')}[bot]"
+        author = values.get("review.author")
+        if author not in (None, "@me") and str(author).lower() != bot.lower():
+            problems.append(("fail", f"review.author is {author} but the App posts as {bot}: set review.author to "
+                                     "@me (the App on its owner's repositories, the gh login elsewhere) or to " + bot))
+        if values.get("hooks.exclude_teams"):
+            problems.append(("fail", "hooks.exclude_teams needs the person's teams, which an App token cannot read: "
+                                     "leave it empty while github.app is set"))
+        if not values.get("hooks.labels.trigger"):
+            problems.append(("warn", f"github.app is set and hooks.labels.trigger is empty: every open pull request "
+                                     f"of {values.get('github.app.owner')}'s workspace repositories is reviewed "
+                                     "(an App has no review requests of its own)"))
     delta_from, max_rounds = values.get("review.delta_from_round"), values.get("review.max_rounds")
     if delta_from is not None and max_rounds is not None and int(delta_from) > int(max_rounds):
         problems.append(("warn", f"review.delta_from_round ({delta_from}) is above review.max_rounds ({max_rounds}): "
@@ -235,7 +254,7 @@ def initial(org):
         elif "x-init" in leaf:
             value = leaf["x-init"]
         elif "default" in leaf:
-            value = leaf["default"]
+            continue  # absence has a meaning (the default): the file stays minimal
         else:
             missing.append(path)
             continue

@@ -58,6 +58,7 @@ bb_cmd_publish() {
   bb_fetch_parse_target "$target" "$repo" || { print -u2 "bugbot publish: $REPLY"; return 2 }
   bb_pr_names "${reply[1]}" "${reply[2]}" || { print -u2 "bugbot publish: $REPLY"; return 2 }
   repo=${reply[1]}
+  bb_app_use "$repo" || { print -u2 "bugbot publish: cannot act as the GitHub App on $repo"; return 1 }
   dir=$BUGBOT_DATA_DIR/cache/$BB_PR_PATH
   meta=$dir/meta.json findings=$dir/findings.json
   [[ -f $meta ]] || { print -u2 "bugbot publish: $repo#$BB_PR_NUMBER has not been fetched"; return 2 }
@@ -77,14 +78,15 @@ bb_cmd_publish() {
     [[ ${live_head#* } == $(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["head"])' "$findings") ]] \
       || { print -u2 "bugbot publish: the PR moved to ${${live_head#* }[1,9]} since this round was reviewed — fetch, triage and review it again"; return 2 }
 
-    # Who posts: review.author. @me is the gh user; a bot login must be what gh acts as.
+    # Who posts: review.author. @me is the gh user; on the App's repositories it is the App's bot
+    # login (bb_app_use); any other bot login must be what gh acts as.
     bb_gh_identity || { print -u2 "bugbot publish: gh is not logged in: $REPLY"; return 1 }
     me=$REPLY
     author=$BUGBOT_REVIEW_AUTHOR
     [[ $author == @me ]] && author=$me
     [[ ${author:l} == ${me:l} ]] \
       || { print -u2 "bugbot publish: review.author is $author but gh acts as $me"; return 2 }
-    [[ -n $BB_GH_ENV_TOKEN ]] && print -u2 "bugbot publish: note: gh uses \$$BB_GH_ENV_TOKEN, not the keyring login"
+    [[ -z $BB_APP_ACTIVE && -n $BB_GH_ENV_TOKEN ]] && print -u2 "bugbot publish: note: gh uses \$$BB_GH_ENV_TOKEN, not the keyring login"
 
     # The previous bot review (its ledger) and the fingerprints already carried by inline threads.
     prev_body=$BB_RUN_DIR/previous-body.md threads=$BB_RUN_DIR/threads.txt
@@ -110,7 +112,8 @@ bb_cmd_publish() {
 
     payload=$BB_RUN_DIR/payload.json
     args=(build --findings "$findings" --meta "$meta" --marker-version "$BUGBOT_MARKER_VERSION"
-          --previous-body "$prev_body" --threads "$threads" --language "$lang")
+          --previous-body "$prev_body" --threads "$threads" --language "$lang"
+          --repo-config "$BUGBOT_HOME/repos/${BB_PR_PATH%%/*}/${${BB_PR_PATH#*/}%%/*}.json")
     [[ -n $translation ]] && args+=(--translation "$translation")
     [[ -n $tldr ]] && args+=(--tldr "$tldr")
     python3 "$BUGBOT_HOME/lib/publish/publish.py" "${args[@]}" > "$payload" 2> "$BB_RUN_DIR/counts" \

@@ -77,6 +77,7 @@ def compare(config, files):
     globs = [(f"domain {name}", g) for name, gs, _risk in config["domains"] for g in gs]
     globs += [("sensitive", s["glob"]) for s in config["sensitive"]]
     globs += [("tests", g) for g in config["tests"]] + [("ignore", g) for g in config["ignore"]]
+    globs += [("approve_deny", g) for g in config["approve_deny"]]
     for where, glob in globs:
         if not any(glob.match(p) for p in files):
             rows.append(("unmatched", f"{where}: {glob.pattern}"))

@@ -73,6 +73,10 @@
       "description": "Files neither counted nor reviewed (generated output, vendored code).",
       "$ref": "#/$defs/globs"
     },
+    "approve_deny": {
+      "description": "Files whose change the bot never approves: a clean review of a PR touching one is posted as COMMENT, and the approval is left to a person. For security boundaries, the CI supply chain and the instructions the reviewer is judged by.",
+      "$ref": "#/$defs/globs"
+    },
     "domains": {
       "description": "Ordered list of domains: a file belongs to the first domain whose paths match it. The domain decides the file's risk (the PR's tier is the highest risk among the domains it touches), the scope shown on the card and which finders run. Empty: every file is medium risk, scoped by top-level directory.",
       "type": "array",

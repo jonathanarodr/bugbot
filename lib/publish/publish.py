@@ -43,6 +43,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "core"))
 import schema  # noqa: E402
+import repoconfig  # noqa: E402
 
 HUNK = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
 LEDGER_OPEN = "<!-- bugbot:ledger"
@@ -74,6 +75,8 @@ TEXT = {
     "footer": "bugbot reviewed `{head}` against `{base}` · round `{round}`",
     "audit_header": "| # | Severity | Finding | Outcome |",
     "duplicate_of": "duplicate of {id}",
+    "approve_denied_status": "🟢 LGTM, approval left to a person",
+    "approve_denied": "**Not approved:** this pull request changes `{file}`, which the repository's `approve_deny` keeps for a person to approve.",
 }
 
 # Built-in text per review.language, only for what people read in the discussion: status, summary
@@ -101,6 +104,8 @@ LOCALES = {
             "outside_title": "Fora do diff — {n} achado(s) em linhas que este PR não altera",
             "outside_note": "O GitHub só aceita comentários inline em linhas que o diff altera.",
             "footer": "bugbot reviewed `{head}` against `{base}` · round `{round}`",
+            "approve_denied_status": "🟢 LGTM, aprovação fica com uma pessoa",
+            "approve_denied": "**Não aprovado:** este pull request altera `{file}`, que o `approve_deny` do repositório reserva para uma pessoa aprovar.",
         },
         "labels": {
             "correctness": "corretude", "security": "segurança", "performance": "desempenho",
@@ -192,6 +197,18 @@ def review_event(verdict, looked):
         verdict, "COMMENT")
 
 
+def approve_denied(meta, config_path):
+    """The first changed file (or a renamed file's old path) matching the repo's approve_deny."""
+    if not config_path:
+        return None
+    globs = repoconfig.load(config_path)["approve_deny"]
+    for f in meta["files"]:
+        for path in filter(None, (f["path"], f.get("previous_path"))):
+            if any(g.match(path) for g in globs):
+                return path
+    return None
+
+
 def build(args):
     findings = schema.read_document(args.findings, "findings")
     meta = schema.read_document(args.meta, "meta")
@@ -262,7 +279,12 @@ def build(args):
     # then reads SKIPPED, which is what lets the next such round collapse this one.
     looked = rnd["scope"] != "unchanged"
     marker_verdict = verdict if looked else "SKIPPED"
-    if marker_verdict == "PASS" and any(f["severity"] == "Low" for f in kept):
+    # approve_deny: a clean review of a PR touching these files is posted as a comment, never an
+    # approval (a reviewer does not approve changes to what it is judged by, or to a security boundary).
+    denied = approve_denied(meta, args.repo_config) if marker_verdict == "PASS" and looked else None
+    if denied:
+        status = text["approve_denied_status"]
+    elif marker_verdict == "PASS" and any(f["severity"] == "Low" for f in kept):
         status = "🟢 Approved with comments" if args.language.startswith("en") else "🟢 Aprovado com comentários"
     else:
         status = status_text.get(marker_verdict, marker_verdict)
@@ -272,6 +294,8 @@ def build(args):
                    for severity in ("Critical", "High", "Medium", "Low")})
 
     body = [f"## {text['heading']}", "", f"#### {status}", ""]
+    if denied:
+        body += [text["approve_denied"].format(file=denied), ""]
     if rnd.get("previous_head"):
         body.append(text["findings_line"].format(**counts, new=new_count, carried=carried_count,
                                                  fixed=fixed, since=f"`{rnd['previous_head'][:9]}`"))
@@ -319,7 +343,7 @@ def build(args):
     body += ["", "<sub>" + text["footer"].format(head=head[:9], base=meta["base"]["branch"], round=rnd["number"])
              + "</sub>", render_ledger(ledger),
              rounds_marker(args.marker_version, head, rnd["number"], marker_verdict)]
-    event = review_event(marker_verdict, looked)
+    event = "COMMENT" if denied else review_event(marker_verdict, looked)
     payload = {"commit_id": head, "event": event, "body": "\n".join(body)}
     if comments:
         payload["comments"] = comments
@@ -344,6 +368,7 @@ def main():
     sub.add_argument("--translation", default="")
     sub.add_argument("--language", default="en", help="review.language: picks the built-in chrome in LOCALES")
     sub.add_argument("--tldr", default="")
+    sub.add_argument("--repo-config", default="", help="repos/<owner>/<name>.json, for approve_deny")
     sub.set_defaults(handler=build)
     args = parser.parse_args()
     try:

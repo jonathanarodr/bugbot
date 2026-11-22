@@ -52,7 +52,7 @@
       "additionalProperties": false
     },
     "text": {
-      "description": "Fixed strings of the review body, by key (heading, findings_line, findings_line_first, scope_line, pre_existing, plausible, rule, outside_title, outside_note, footer, pass_tldr, unchanged_tldr). Built-in languages (lib/publish/publish.py LOCALES) already have them; set a key only to override. Placeholders in braces stay as they are.",
+      "description": "Fixed strings of the review body, by key (heading, findings_line, findings_line_first, scope_line, pre_existing, plausible, rule, outside_title, outside_note, footer, pass_tldr, unchanged_tldr, approve_denied_status, approve_denied). Built-in languages (lib/publish/publish.py LOCALES) already have them; set a key only to override. Placeholders in braces stay as they are.",
       "type": "object",
       "propertyNames": {
         "enum": [
@@ -67,7 +67,9 @@
           "rule",
           "outside_title",
           "outside_note",
-          "footer"
+          "footer",
+          "approve_denied_status",
+          "approve_denied"
         ]
       },
       "additionalProperties": {
