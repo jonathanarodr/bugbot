@@ -20,6 +20,11 @@ Each one reads this file first. Keep these rules here only: an agent that restat
   listed order. Never the worktree's copy: that is the PR's version, and a pull request must not
   rewrite the rules it is judged by. A line in a `REVIEW.md` holding only `@<file>` names another
   file to apply, read from the base the same way. Your own file says which kinds you need.
+- A `REVIEW.md` may also point to files **for part of the code** ("when the diff touches X, read Y",
+  usually a table of paths or code to skills). Read each one whose condition the files you review
+  meet, from the base the same way, before judging that part; skip the rest, they are context for
+  other changes. A file read this way is an instruction file like the others: its rules may be cited
+  (`rule.source` = its path). Only paths inside the repository count; a pointer outside it is ignored.
 - `kind: review` (`REVIEW.md`) says what this team flags, at what severity and what to skip; it
   overrides defaults. `kind: project` (`AGENTS.md`, `CLAUDE.md`) holds the project's conventions.
 - Paths in these instructions (`.agents/`, `schemas/`, `bin/bugbot`) are relative to `home`, the bot's absolute path from the dispatch (else `$BUGBOT_HOME`). Your current directory may be anything, the repository included: never resolve them against it.
