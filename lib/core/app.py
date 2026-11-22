@@ -161,13 +161,13 @@ def check(args):
     rows = []
     try:
         bearer = jwt(args.app_id, args.keychain_service)
-        rows.append(("ok", "App key", f"Keychain {args.keychain_service}: signs a JWT"))
+        rows.append(("ok", "key", f"Keychain {args.keychain_service}: signs a JWT"))
         app = call("GET", "/app", bearer)
         slug = app.get("slug", "")
         if slug.lower() != args.slug.lower():
-            rows.append(("fail", "App", f"id {args.app_id} is {slug!r}, not {args.slug!r}: reviews would not be recognized"))
+            rows.append(("fail", "identity", f"id {args.app_id} is {slug!r}, not {args.slug!r}: reviews would not be recognized"))
         else:
-            rows.append(("ok", "App", f"{slug} (id {args.app_id}), posts as {slug}[bot]"))
+            rows.append(("ok", "identity", f"{slug} (id {args.app_id}), posts as {slug}[bot]"))
         installation = call("GET", f"/app/installations/{args.installation_id}", bearer)
         account = (installation.get("account") or {}).get("login", "")
         if account.lower() != args.owner.lower():
@@ -189,7 +189,7 @@ def check(args):
             else:
                 rows.append(("ok", "token", f"{len(names)} repo(s): pull_requests write, contents, checks, statuses read"))
     except AppError as error:
-        rows.append(("fail", "App", str(error)))
+        rows.append(("fail", "access", str(error)))
     for row in rows:
         print("\t".join(row))
 
