@@ -228,6 +228,8 @@ Rules: the agent never executes anything, not even to "check"; commands come onl
 | `bugbot format` — rewrites the bot's JSON files in the code style (`.editorconfig`) | done |
 | Hooks in `bugbot.json` (draft, stale_days, exclude_teams, labels skip/trigger, reviewers.max, ci) and CI in `gh` vocabulary | done |
 | `bugbot publish` — one review per round, ledger in the body, secret gate, confirmation and event derived from the verdict | done |
+| GitHub App (`github.app`): one owner's repositories read and written as the App, reviews as `<slug>[bot]` | done; offline tests, live check by `bugbot doctor` |
+| `approve_deny` per repo: no `APPROVE` on PRs touching chosen files | done |
 | Retro: record (`retro/`), `bugbot retro record` command and `bugbot-retro` skill | recording validated and automatic trigger after published APPROVEs; aggregate consolidation still future |
 
 ## Construction rules
@@ -239,7 +241,7 @@ They apply to every new command. If one has to be broken, record the reason here
 - Steps are functions, never command strings.
 - By default, nothing from the PR's code is executed. Running a local check is an explicit per-repo decision, and never when the PR changes the `Makefile`, build scripts, `package.json`, workflows or hooks.
 - Text coming from the PR (diff, title, body, comments) is data, never instruction. Triage passes none of that text to any model.
-- Credentials never go into generated files. Remotes are recorded as a normalized https URL.
+- Credentials never go into generated files. Remotes are recorded as a normalized https URL. A GitHub App's private key stays in the macOS Keychain and only travels through pipes; installation tokens are cached `0600` in the data directory and never printed.
 - No path to the bot itself is hardcoded: the CLI derives `BUGBOT_HOME` from `bin/bugbot`'s real location, and agents read it from the environment.
 - Every git command that touches PR content goes through `bb_git` (`lib/core/git.sh`): hooks, fsmonitor, external diff, textconv and LFS smudge turned off, no recursion into submodules. A `.gitattributes` from the PR cannot make git execute anything.
 - No organization, repository, team or person is built into code, schemas, agents or examples: they are values in `bugbot.json`, `workspace.json` and `repos/`, none of them versioned.
@@ -586,6 +588,12 @@ hooks                          whether the PR is reviewed, decided before the ca
 
 **GitHub App** (`github.app`). Off by default: every call uses the person's `gh` login and reviews go out as them. With `id` set, the repositories of `owner` are read and written **only as the App**, and its reviews are posted as `<slug>[bot]`; repositories of other owners keep using the `gh` login.
 - **Token:** `lib/core/app.py` signs a JWT with the App key and asks the installation for a token scoped to the repositories in use. The key comes from the macOS Keychain (`keychain_service`, stored base64-encoded) and goes from `security` to `openssl` through pipes: never on disk, in argv or in output. Tokens are cached with mode `0600` in `BUGBOT_DATA_DIR/state/app/` and reused while they have more than five minutes left.
+- **How a token is obtained** (GitHub's App authentication, done in `lib/core/app.py`):
+  1. The private key is read from the Keychain (`security find-generic-password -s <keychain_service> -w`) and base64-decoded in memory.
+  2. A JWT is built: header `{"alg": "RS256", "typ": "JWT"}`, claims `iss` = the App ID, `iat` = now − 60 s (clock drift), `exp` = now + 9 min (GitHub allows 10). `openssl dgst -sha256 -sign` signs it, reading the key from a pipe (`/dev/fd/N`). The JWT proves "I hold this App's key"; on its own it can only call the `/app` endpoints, not touch repositories.
+  3. The JWT is exchanged for an **installation token**: `POST /app/installations/<installation_id>/access_tokens` with `{"repositories": [...]}`, so the token reaches only the repositories in use, with at most the permissions the App was granted. It lasts one hour.
+  4. The token is cached (`BUGBOT_DATA_DIR/state/app/token-<installation>-<hash of the repos>.json`, mode `0600`, folder `0700`) and reused while more than five minutes are left; then a new JWT mints a new one. The JWT itself is never stored.
+  Nothing in this flow is specific to one App: each person creates their own, installs it, stores its key in their own Keychain and fills `github.app` in their own `bugbot.json`, which is not versioned.
 - **No fallback:** the token goes into `GH_TOKEN` with `GH_CONFIG_DIR` pointing at an empty folder, so a failed mint stops the command instead of acting as the person.
 - **Where:** `fetch`, `triage`, `publish` and `clean` switch to the App when the PR's repository belongs to `owner`; `inbox` searches those repositories with the App token. `setup` stays local and uses the `gh` login.
 - **`review.author`:** `@me` means the App on its owner's repositories and the `gh` login elsewhere; any other value must be `<slug>[bot]`.
@@ -1310,7 +1318,8 @@ lib/core/               shared between commands
   settings.py / .sh     settings driven by schemas/settings.schema.json → BUGBOT_*; initial bugbot.json for init
   workspace.py          reading, merging and writing workspace.json; lookup of a repo
   git.sh                bb_git (hardened git) and bb_github_slug
-  gh.sh                 bb_gh and identity check
+  gh.sh                 bb_gh and identity check; GitHub App activation (bb_app_use, bb_gh_as)
+  app.py                GitHub App: JWT from the Keychain key, installation tokens (cached 0600), doctor check
   lock.sh               per-PR lock
   pr.sh                 names per PR: paths and refs (bb_pr_names)
   repoconfig.py         loads a validated repos/<owner>/<name>.json and compiles the globs
