@@ -42,39 +42,28 @@ Options:
   -h, --help             this help"
 }
 
-# Live PR state for the hooks: labels, draft, state, every check and the required ones, as
-# `gh pr checks --json` reports them. With --json gh exits 0 even when checks fail; it exits 1
-# for "no required checks reported" (a repository without branch protection) and for "no checks
-# reported" (no check ran on the head), neither of which is an error. Any other failure leaves checks unread, and hooks.ci passed then waits.
+# Live PR state for the hooks: labels, draft, state, every check and the required ones, in the
+# buckets `gh pr checks` uses. No check at all, or none required, is a reading, not an error.
 bb_triage_step_state() {
   local view checks required err rc available=true read=true msg=''
 
   view=$(bb_gh pr view "$BB_TRIAGE_PR" --repo "$BB_TRIAGE_REPO" --json labels,isDraft,state,reviewRequests,commits 2>&1) \
     || { print -r -- "gh pr view failed: $view"; return 1 }
 
-  checks=$(bb_gh pr checks "$BB_TRIAGE_PR" --repo "$BB_TRIAGE_REPO" --json name,bucket,state 2>"$BB_RUN_DIR/checks.err")
-  rc=$?
-  if (( rc != 0 )); then
-    err=$(<"$BB_RUN_DIR/checks.err")
-    if [[ $err == *"no checks reported"* ]]; then
-      checks='[]'
-    else
-      read=false msg=$err checks='[]'
-    fi
-  fi
-
-  required=$(bb_gh pr checks "$BB_TRIAGE_PR" --repo "$BB_TRIAGE_REPO" --required --json name,bucket,state 2>"$BB_RUN_DIR/required.err")
-  rc=$?
-  if (( rc != 0 )); then
-    err=$(<"$BB_RUN_DIR/required.err")
-    required='[]'
-    # "no required checks reported": no branch protection; "no checks reported": no check ran at
-    # all (a label that skips CI, docs-only paths). Both are read: nothing required, nothing blocks.
-    if [[ $err == *"no required checks reported"* || $err == *"no checks reported"* ]]; then
-      available=false
-    else
-      read=false msg=${msg:-$err}
-    fi
+  # Every check and the required ones, latest run per name, in gh's buckets (lib/inbox/inbox.py
+  # checks: the same reading as the inbox). Not `gh pr checks`: it asks for each check suite's
+  # workflowRun, which a GitHub App without Actions permission cannot read. A failure leaves
+  # checks unread, and hooks.ci passed then waits.
+  local raw
+  raw=$(python3 "$BUGBOT_HOME/lib/inbox/inbox.py" checks --repo "$BB_TRIAGE_REPO" --pr "$BB_TRIAGE_PR" 2>"$BB_RUN_DIR/checks.err")
+  if (( $? != 0 )) || [[ -z $raw ]]; then
+    read=false msg=$(<"$BB_RUN_DIR/checks.err") checks='[]' required='[]'
+  else
+    checks=$(python3 -c 'import json,sys; print(json.dumps(json.loads(sys.argv[1])["all"]))' "$raw")
+    required=$(python3 -c 'import json,sys; print(json.dumps(json.loads(sys.argv[1])["required"]))' "$raw")
+    msg=$(python3 -c 'import json,sys; print(json.loads(sys.argv[1])["error"] or "")' "$raw")
+    [[ -n $msg ]] && read=false
+    [[ $(python3 -c 'import json,sys; print(json.loads(sys.argv[1])["available"])' "$raw") == True ]] || available=false
   fi
 
   # Reviews from REST, the only API that says whether a reviewer is a bot (user.type). Only

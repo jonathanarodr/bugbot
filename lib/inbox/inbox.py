@@ -163,9 +163,11 @@ def gh_graphql(query, identity=None):
     return data.get("data") or {}, None
 
 
-def required_checks(prs, identity=None):
-    """{(repo, number): (checks, error)} with checks as [{"name", "bucket"}] of the required ones,
-    the latest run per name, as `gh pr checks --required` reports them."""
+def pr_checks(prs, identity=None):
+    """{(repo, number): (all, required, error)}: the head's checks, the latest run per name, each as
+    {"name", "bucket", "state"} in gh's bucket vocabulary, and the required subset. One GraphQL query
+    per CHECKS_PER_QUERY pull requests, without the workflowRun field `gh pr checks` asks for: that
+    field needs Actions permission, which a GitHub App reviewing pull requests does not have."""
     out = {}
     for start in range(0, len(prs), CHECKS_PER_QUERY):
         chunk = prs[start:start + CHECKS_PER_QUERY]
@@ -178,26 +180,40 @@ def required_checks(prs, identity=None):
         for index, key in enumerate(chunk):
             node = ((data or {}).get(f"p{index}") or {}).get("pullRequest")
             if error or not node:
-                out[key] = ([], error or "pull request not readable")
+                out[key] = ([], [], error or "pull request not readable")
                 continue
             commit = ((node["commits"]["nodes"] or [{}])[0].get("commit") or {})
             contexts = (commit.get("statusCheckRollup") or {}).get("contexts") or {"nodes": [], "totalCount": 0}
             if contexts["totalCount"] > len(contexts["nodes"]):
-                out[key] = ([], f"{contexts['totalCount']} checks, more than one page")
+                out[key] = ([], [], f"{contexts['totalCount']} checks, more than one page")
                 continue
             latest = {}
             for c in contexts["nodes"]:
-                if not c.get("isRequired"):
-                    continue
                 if c["__typename"] == "CheckRun":
                     name, when = c["name"], c.get("startedAt") or ""
                     state = c["conclusion"] if c["status"] == "COMPLETED" else c["status"]
                 else:
                     name, when, state = c["context"], c.get("createdAt") or "", c["state"]
                 if name not in latest or when > latest[name][0]:
-                    latest[name] = (when, BUCKET.get(state, "pending"))
-            out[key] = ([{"name": n, "bucket": b} for n, (_w, b) in sorted(latest.items())], None)
+                    latest[name] = (when, state or "PENDING", bool(c.get("isRequired")))
+            every = [{"name": n, "bucket": BUCKET.get(st, "pending"), "state": st}
+                     for n, (_w, st, _r) in sorted(latest.items())]
+            required = [c for c in every if latest[c["name"]][2]]
+            out[key] = (every, required, None)
     return out
+
+
+def required_checks(prs, identity=None):
+    """{(repo, number): (checks, error)} with checks as [{"name", "bucket"}] of the required ones,
+    as `gh pr checks --required` reports them."""
+    return {key: ([{"name": c["name"], "bucket": c["bucket"]} for c in required], error)
+            for key, (_every, required, error) in pr_checks(prs, identity).items()}
+
+
+def checks_cmd(args):
+    """One PR's checks for `bugbot triage`: {all, required, available, error} on stdout."""
+    every, required, error = pr_checks([(args.repo, args.pr)])[(args.repo, args.pr)]
+    json.dump({"all": every, "required": required, "available": bool(required), "error": error}, sys.stdout)
 
 
 def gh_json(*args):
@@ -394,6 +410,11 @@ def rows(args):
 def main():
     parser = argparse.ArgumentParser(prog="inbox.py")
     commands = parser.add_subparsers(dest="command", required=True)
+
+    sub = commands.add_parser("checks")
+    sub.add_argument("--repo", required=True)
+    sub.add_argument("--pr", type=int, required=True)
+    sub.set_defaults(handler=checks_cmd)
 
     sub = commands.add_parser("query")
     sub.add_argument("--hooks", required=True)
