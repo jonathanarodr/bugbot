@@ -187,7 +187,20 @@ def check(args):
                      if rank.get(permissions.get(k), 0) < rank[v]]
             level = "fail" if any(s.startswith("pull_requests") for s in short) else "warn"
             if short:
-                rows.append((level, "token", f"{len(names)} repo(s); " + "; ".join(short)))
+                # The App's own settings say what it asks for; the installation, what the owner accepted.
+                asked = app.get("permissions") or {}
+                accepted = installation.get("permissions") or {}
+                pending = [k for k, v in needed.items()
+                           if rank.get(asked.get(k), 0) >= rank[v] > rank.get(accepted.get(k), 0)]
+                missing = [k for k, v in needed.items() if rank.get(asked.get(k), 0) < rank[v]]
+                hint = []
+                if missing:
+                    hint.append(f"add {', '.join(missing)} in the App's settings (Permissions & events)")
+                if pending:
+                    hint.append(f"{', '.join(pending)} not yet accepted: approve the permission request on "
+                                f"{account}'s installation (Settings → GitHub Apps)")
+                rows.append((level, "token", f"{len(names)} repo(s); " + "; ".join(short)
+                             + (" — " + "; ".join(hint) if hint else "")))
             else:
                 rows.append(("ok", "token", f"{len(names)} repo(s): pull_requests write, contents, checks, statuses read"))
     except AppError as error:
