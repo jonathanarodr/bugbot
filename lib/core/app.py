@@ -136,9 +136,11 @@ def store(path, data):
             os.unlink(tmp)
 
 
-def mint(args, names):
+def mint(args, names, fresh=False):
+    """A cached token while it has time left; fresh=True always asks GitHub (doctor: permissions
+    granted to the App after a token was cached only show on a new one)."""
     path = cache_path(args.cache_dir, args.installation_id, names)
-    data = cached(path)
+    data = None if fresh else cached(path)
     if data:
         return data
     answer = call("POST", f"/app/installations/{args.installation_id}/access_tokens",
@@ -178,7 +180,7 @@ def check(args):
         if not names:
             rows.append(("warn", "token", f"no workspace repository of {args.owner}: nothing uses the App"))
         else:
-            permissions = mint(args, names)["permissions"]
+            permissions = mint(args, names, fresh=True)["permissions"]
             needed = {"pull_requests": "write", "contents": "read", "checks": "read", "statuses": "read"}
             rank = {"read": 1, "write": 2}
             short = [f"{k}: {permissions.get(k, 'none')} (needs {v})" for k, v in needed.items()
