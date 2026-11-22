@@ -44,8 +44,8 @@ Options:
 
 # Live PR state for the hooks: labels, draft, state, every check and the required ones, as
 # `gh pr checks --json` reports them. With --json gh exits 0 even when checks fail; it exits 1
-# for "no required checks reported", which is a repository without branch protection, not an
-# error. Any other failure leaves checks unread, and hooks.ci passed then waits.
+# for "no required checks reported" (a repository without branch protection) and for "no checks
+# reported" (no check ran on the head), neither of which is an error. Any other failure leaves checks unread, and hooks.ci passed then waits.
 bb_triage_step_state() {
   local view checks required err rc available=true read=true msg=''
 
@@ -68,7 +68,9 @@ bb_triage_step_state() {
   if (( rc != 0 )); then
     err=$(<"$BB_RUN_DIR/required.err")
     required='[]'
-    if [[ $err == *"no required checks reported"* ]]; then
+    # "no required checks reported": no branch protection; "no checks reported": no check ran at
+    # all (a label that skips CI, docs-only paths). Both are read: nothing required, nothing blocks.
+    if [[ $err == *"no required checks reported"* || $err == *"no checks reported"* ]]; then
       available=false
     else
       read=false msg=${msg:-$err}
