@@ -36,7 +36,10 @@ tells the sub-agent to read `<home>/.agents/skills/<skill>/SKILL.md` and follow 
 `bugbot-finder-bugs`, `bugbot-finder-security`, `bugbot-finder-convention`, `bugbot-verifier`,
 `bugbot-retro`). Those skills are closed to model invocation (`disable-model-invocation`,
 `allow_implicit_invocation: false`) so no other session loads one on its own; reading the file is not
-affected. Dispatch each sub-agent with the model in its skill's `model:` frontmatter. Every sub-agent
+affected. Dispatch each sub-agent with the model in its skill's `model:` frontmatter, and with the
+smallest agent type the harness offers: in Claude Code, `subagent_type: bugbot-worker`
+(`.claude/agents/bugbot-worker.md`: Read, Grep, Glob, Bash and Write only), never `general-purpose`,
+which carries every tool and MCP schema of the session into each run. Every sub-agent
 also reads `.agents/skills/bugbot/references/review-rules.md`; never paste their rules into a
 dispatch prompt.
 
