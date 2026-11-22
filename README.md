@@ -144,7 +144,7 @@ A new local round starts clean: `fetch` deletes `candidates/`, `verdicts/` and `
 
 `.agents/skills/bugbot/SKILL.md` is the agent that does the part the CLI does not: reading code. It drives the CLI, reviews and writes `findings.json`; it publishes only through `bugbot publish`, after showing the `--dry-run` and you saying yes.
 
-Every role is a skill in `.agents/skills/<name>/` (`SKILL.md` plus `agents/openai.yaml`). Codex reads `.agents/skills/` on its own; Claude Code looks in `.claude/skills/`, so there the entry point is asked for by path ("follow `.agents/skills/bugbot/SKILL.md` and review …"). Only `bugbot` is meant to be invoked by people; the others are closed to model invocation (`disable-model-invocation: true`, `allow_implicit_invocation: false`) and the orchestrator dispatches a sub-agent that reads them by path.
+Every role is a skill in `.agents/skills/<name>/` (`SKILL.md` plus `agents/openai.yaml`). Codex reads `.agents/skills/`; Claude Code reads `.claude/skills/`, which is a versioned symlink to `.agents/skills`, so both load the same files from a session opened in the bot's folder. Only `bugbot` is meant to be invoked by people; the others are closed to model invocation (`disable-model-invocation: true`, `allow_implicit_invocation: false`) and the orchestrator dispatches a sub-agent that reads them by path.
 
 | Skill | Model | Role |
 |---|---|---|
@@ -1312,6 +1312,7 @@ How it rewrites safely:
 ```
 .editorconfig           code style (editor) — `bugbot format` applies the same to the bot's JSON files
 bin/bugbot              dispatcher: resolves paths, loads the core, calls bb_cmd_<command>
+.claude/skills          symlink to .agents/skills, where Claude Code looks for skills
 .agents/skills/<name>/  one skill per role: SKILL.md + agents/openai.yaml (bugbot, bugbot-triage, bugbot-finder-*, bugbot-verifier, bugbot-retro);
                         bugbot/references/ holds the rules every role shares
 lib/core/               shared between commands

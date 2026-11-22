@@ -30,6 +30,9 @@
 *.tmp
 *.format-tmp
 
+# Claude Code: personal settings (.claude/skills is a versioned symlink to .agents/skills)
+/.claude/settings.local.json
+
 # Editors, system and Python noise
 .DS_Store
 .idea/
