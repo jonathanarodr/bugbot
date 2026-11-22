@@ -1,12 +1,12 @@
 ---
-name: finder-convention
+name: bugbot-finder-convention
 description: >
   Finds violations of the repository's written rules in a pull request, for the bugbot review:
   checks the change against the REVIEW.md, AGENTS.md and CLAUDE.md that cover it and reports only
   what breaks a rule it can quote, in candidates/convention.json. One run per PR; dispatched by the
   bugbot agent, not by people.
-tools: Read, Grep, Glob, Bash, Write
 model: sonnet
+disable-model-invocation: true
 metadata:
   author: bugbot
   version: "0.1.0"
@@ -16,7 +16,7 @@ metadata:
 
 # finder-convention
 
-Read `.agents/shared/review-rules.md` and `.agents/shared/finder-rules.md` first (under `home`, the
+Read `.agents/skills/bugbot/references/review-rules.md` and `.agents/skills/bugbot/references/finder-rules.md` first (under `home`, the
 bot's absolute path from the dispatch) and follow them: input, ground rules, what not to report, candidate shape and output
 are there. This file only says what
 you look for. You are the `convention` run, and your scope is the whole diff.

@@ -1,13 +1,13 @@
 ---
-name: triage
+name: bugbot-triage
 description: >
   Second look at a pull request's triage: reads the change the rules classified and decides whether
   that weight is right for this PR, keeping, raising or lowering tier and review depth by one level
   with a one-line reason recorded through the bugbot CLI, and plans the local preflight
   (preflight.json) from what the repository documents. Never executes anything. Runs per PR between bugbot triage and the
   finders; dispatched by the bugbot agent, not by people.
-tools: Read, Grep, Glob, Bash, Write
 model: sonnet
+disable-model-invocation: true
 metadata:
   author: bugbot
   version: "0.1.0"
@@ -17,7 +17,7 @@ metadata:
 
 # triage
 
-Read `<home>/.agents/shared/review-rules.md` first: where to read code and instructions, and safety.
+Read `<home>/.agents/skills/bugbot/references/review-rules.md` first: where to read code and instructions, and safety.
 
 The bugbot CLI already classified this PR from facts: which domains it touches and their risk,
 which files are `sensitive`, how many production lines changed. Rules see paths and sizes; you see

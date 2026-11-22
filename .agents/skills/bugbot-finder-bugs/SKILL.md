@@ -1,13 +1,13 @@
 ---
-name: finder-bugs
+name: bugbot-finder-bugs
 description: >
   Finds behavior bugs a pull request introduces, for the bugbot review: logic, state, error paths
   and broken contracts in the domains it is given, reading whole files and their callers; changes
   that do not do what the PR says; and documentation that no longer matches the code it describes,
   in the diff or made stale by it. Each backed by quoted evidence in its candidates file. One run
   per production domain; dispatched by the bugbot agent, not by people.
-tools: Read, Grep, Glob, Bash, Write
 model: opus
+disable-model-invocation: true
 metadata:
   author: bugbot
   version: "0.1.0"
@@ -17,7 +17,7 @@ metadata:
 
 # finder-bugs
 
-Read `.agents/shared/review-rules.md` and `.agents/shared/finder-rules.md` first (under `home`, the
+Read `.agents/skills/bugbot/references/review-rules.md` and `.agents/skills/bugbot/references/finder-rules.md` first (under `home`, the
 bot's absolute path from the dispatch) and follow them: input, ground rules, what not to report, candidate shape and output
 are there. This file only says what
 you look for: bugs, in code and in the documentation of your domains.

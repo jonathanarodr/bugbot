@@ -1,0 +1,5 @@
+interface:
+  display_name: "Bugbot Triage"
+  short_description: "Second opinion on a PR's triage weight and the local preflight plan."
+policy:
+  allow_implicit_invocation: false

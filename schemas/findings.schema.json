@@ -325,7 +325,7 @@
           "pattern": "^[a-z][a-z0-9-]{0,30}$"
         },
         "severity": {
-          "description": "Finding severity: Critical, High, Medium or Low, as defined in .agents/shared/review-rules.md and refined by the repository's REVIEW.md.",
+          "description": "Finding severity: Critical, High, Medium or Low, as defined in .agents/skills/bugbot/references/review-rules.md and refined by the repository's REVIEW.md.",
           "enum": [
             "Critical",
             "High",

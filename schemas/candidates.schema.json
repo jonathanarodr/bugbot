@@ -35,7 +35,7 @@
       ],
       "properties": {
         "model": {
-          "description": "Model that actually ran (may differ from the agent's frontmatter).",
+          "description": "Model that actually ran (may differ from the skill's frontmatter `model:`).",
           "type": "string"
         },
         "effort": {
@@ -74,7 +74,7 @@
       ],
       "properties": {
         "severity": {
-          "description": "Finding severity: Critical, High, Medium or Low, as defined in .agents/shared/review-rules.md and refined by the repository's REVIEW.md.",
+          "description": "Finding severity: Critical, High, Medium or Low, as defined in .agents/skills/bugbot/references/review-rules.md and refined by the repository's REVIEW.md.",
           "enum": [
             "Critical",
             "High",

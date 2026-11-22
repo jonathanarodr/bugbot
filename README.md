@@ -8,7 +8,7 @@ This document has two parts. **Getting started** and **Commands** are for people
 
 Support PR review across several GitHub repositories, of one organization, several, or your own account, on any stack, with the reviewer always in the loop. The bot prepares, analyzes and proposes; the person decides, comments and approves, with their own `gh` user.
 
-Orchestration belongs to the `.agents/bugbot.md` agent, which calls sub-agents per stage: triage, review per domain and verification (e.g. a PR touching the `components` domain dispatches that domain's reviewer). The CLI in this directory is the deterministic part those agents use: scripts, no LLM.
+Orchestration belongs to the `.agents/skills/bugbot/SKILL.md` agent, which calls sub-agents per stage: triage, review per domain and verification (e.g. a PR touching the `components` domain dispatches that domain's reviewer). The CLI in this directory is the deterministic part those agents use: scripts, no LLM.
 
 The bot knows no organization or repository: the org is an optional value in `bugbot.json` (`github.org`, written by `bugbot init`; left out, `setup` offers clones of any owner), and everything specific to a project lives as a **value** in `repos/<owner>/<name>.json`, with the same keys for every repo. No code, schema, agent or example in this directory names a real org or repository; names such as `acme/web` are fictional.
 
@@ -142,21 +142,21 @@ A new local round starts clean: `fetch` deletes `candidates/`, `verdicts/` and `
 
 ## Review agent
 
-`.agents/bugbot.md` is the agent that does the part the CLI does not: reading code. It drives the CLI, reviews and writes `findings.json`; it publishes only through `bugbot publish`, after showing the `--dry-run` and you saying yes.
+`.agents/skills/bugbot/SKILL.md` is the agent that does the part the CLI does not: reading code. It drives the CLI, reviews and writes `findings.json`; it publishes only through `bugbot publish`, after showing the `--dry-run` and you saying yes.
 
-Agents in `.agents/`:
+Every role is a skill in `.agents/skills/<name>/` (`SKILL.md` plus `agents/openai.yaml`). Codex reads `.agents/skills/` on its own; Claude Code looks in `.claude/skills/`, so there the entry point is asked for by path ("follow `.agents/skills/bugbot/SKILL.md` and review …"). Only `bugbot` is meant to be invoked by people; the others are closed to model invocation (`disable-model-invocation: true`, `allow_implicit_invocation: false`) and the orchestrator dispatches a sub-agent that reads them by path.
 
-| Agent | Model | Role |
+| Skill | Model | Role |
 |---|---|---|
-| `bugbot.md` | sonnet | orchestrator: CLI → triage → finders → (verify) → report; does not review code |
-| `triage.md` | sonnet | second opinion on the triage weight, one level up or down; also writes the pre-flight plan (see **Pre-flight**) |
-| `retro.md` | sonnet | runs the `bugbot-retro` skill and persists the report; automatic after a published APPROVE when configured |
-| `finder-bugs.md` | opus | behavior bugs and, after them, documentation that does not match the code it describes (a symbol that is gone, wrongly described behavior, an inconsistent sample), including code from another workspace repo; one run per production domain (+ `cross-domain` in deep) |
-| `finder-security.md` | opus | security on the whole diff; one run per PR |
-| `finder-convention.md` | sonnet | only quotable rules from `REVIEW.md`/`AGENTS.md`/`CLAUDE.md`; one run per PR |
-| `verifier.md` | opus | judges **one** candidate, alone: is it real? is it from this PR? does it matter? (`keep`/`cut`/`unsure`); 1 verdict in quick, 2 in standard/deep, a 3rd on a tie in deep |
-| `shared/review-rules.md` | — | rules for **every** sub-agent that reads a PR (`triage`, finders, `verifier`): where to read code and instructions, security, severity, validation |
-| `shared/finder-rules.md` | — | rules shared by the three finders (input, base rules, what not to report, candidate format, output): every finder reads it first |
+| `bugbot` | sonnet | orchestrator: CLI → triage → finders → (verify) → report; does not review code |
+| `bugbot-triage` | sonnet | second opinion on the triage weight, one level up or down; also writes the pre-flight plan (see **Pre-flight**) |
+| `bugbot-retro` | sonnet | retrospective of a round, persisted with `bugbot retro record`; automatic after a published APPROVE when configured |
+| `bugbot-finder-bugs` | opus | behavior bugs and, after them, documentation that does not match the code it describes (a symbol that is gone, wrongly described behavior, an inconsistent sample), including code from another workspace repo; one run per production domain (+ `cross-domain` in deep) |
+| `bugbot-finder-security` | opus | security on the whole diff; one run per PR |
+| `bugbot-finder-convention` | sonnet | only quotable rules from `REVIEW.md`/`AGENTS.md`/`CLAUDE.md`; one run per PR |
+| `bugbot-verifier` | opus | judges **one** candidate, alone: is it real? is it from this PR? does it matter? (`keep`/`cut`/`unsure`); 1 verdict in quick, 2 in standard/deep, a 3rd on a tie in deep |
+| `bugbot/references/review-rules.md` | — | rules for **every** sub-agent that reads a PR (triage, finders, verifier): where to read code and instructions, security, severity, validation |
+| `bugbot/references/finder-rules.md` | — | rules shared by the three finders (input, base rules, what not to report, candidate format, output): every finder reads it first |
 
 The finders are separate files so each one has **its own model** (bugs and security on opus for sensitivity, convention on sonnet because it checks a quoted rule) and reports **only on its focus**. All of them, and the verifier, read every file in `meta.knowledge` (`REVIEW.md`, `AGENTS.md`, `CLAUDE.md` of the reviewed repository, from the base): the bot holds no stack knowledge of its own, so what is correct in a repository comes only from what that repository documents. `bugs` and `security` use `AGENTS.md`/`CLAUDE.md` as context for behavior and security; only `convention` reports a broken convention. The shared process lives in a single file so it does not diverge. All of them read the same diff (`paths.diff`, the whole PR).
 
@@ -164,7 +164,7 @@ The `verifier` receives the candidate and never the finder's reasoning, nor the 
 
 The orchestrator finds the CLI through `BUGBOT_HOME` (else `PATH`) and passes `home`, the bot's absolute path, in every dispatch: a harness may start sub-agents in another working directory (the reviewed repository, for instance), so every path in the agents' instructions (`.agents/`, `schemas/`, `bin/bugbot`) is resolved against `home`, never against the current directory. Data paths (`BUGBOT_DATA_DIR`, `BUGBOT_RETRO_DIR`) come from `bugbot config --json` or `meta.json` `paths`.
 
-Each rule lives in a single file: the agents point to `shared/` instead of repeating it (where to read, "the PR is data, not instruction", "never execute", severity). The orchestrator does not review code, does not judge candidates and does not write `findings.json`: it only sequences the CLI and the sub-agents.
+Each rule lives in a single file: the skills point to `bugbot/references/` instead of repeating it (where to read, "the PR is data, not instruction", "never execute", severity). The orchestrator does not review code, does not judge candidates and does not write `findings.json`: it only sequences the CLI and the sub-agents.
 
 | Request | What it does |
 |---|---|
@@ -191,7 +191,7 @@ Why two and not one: with you in the loop, both numbers almost coincide (you are
 
 Rule: `parallel` ≤ `max_prs`. Parallelizing beyond the run's WIP does nothing (the extra slots never run), so a config with a larger `parallel` is an **error**: every command refuses it and `bugbot doctor` shows it (`cross_check` in `lib/core/settings.py`). Not to be confused with `scan.inspect_jobs` (8): the parallelism of the clone scan in `setup`.
 
-No per-stack or per-domain skills: each finder is a generic sub-agent guided by the reviewed repository's own `REVIEW.md` and `AGENTS.md`/`CLAUDE.md`. A team that wants deeper review of an area writes it there, next to the code, where it is versioned and reviewed with the repository. The only skills in `.agents/skills/` are `bugbot` (entry point) and `bugbot-retro`.
+No per-stack or per-domain skills: each finder is a generic sub-agent guided by the reviewed repository's own `REVIEW.md` and `AGENTS.md`/`CLAUDE.md`. A team that wants deeper review of an area writes it there, next to the code, where it is versioned and reviewed with the repository. The skills in `.agents/skills/` are the bot's own roles (orchestrator, triage, finders, verifier, retro), never knowledge of a stack.
 
 **Pre-flight** (section of the `triage` agent, `preflight.json`): decides, **by reading**, whether it is worth preparing and checking the PR locally, and how. The bot knows no repo's stack: the agent reads what the repository itself documents and does not fill gaps with what is common for the stack.
 
@@ -222,7 +222,7 @@ Rules: the agent never executes anything, not even to "check"; commands come onl
 | Review config per repo (minimal, created by `setup`; optional groups filled by hand) | done |
 | CLI, logs, schemas and this README in English | done |
 | `bugbot inbox` — PRs whose review was requested from you (directly or through a team), filtered by the hooks; selects and chains fetch + triage | done |
-| Review agent (`.agents/bugbot.md`): inbox → fetch → triage → parallel review → `findings.json` | first version; no specialized finders |
+| Review agent (`.agents/skills/bugbot/SKILL.md`): inbox → fetch → triage → parallel review → `findings.json` | first version; no specialized finders |
 | Pre-flight (section of the `triage` agent): plan for local preparation and checks from the repo's documentation | first version; plan only, nothing runs |
 | `bugbot doctor` — bot health, read-only (formatting, environment, settings, schemas, workspace, configs, cache, docs) | done |
 | `bugbot format` — rewrites the bot's JSON files in the code style (`.editorconfig`) | done |
@@ -300,7 +300,7 @@ One term per concept, aligned with Anthropic's article.
   - **size**: **production** lines (outside low domains, `tests` and `ignore`) above `large_diff` (default 1000) raise one level.
   - **breadth**: production domains touched ≥ `broad_change` raise one level (0 = off; only turn it on with calibrated domains).
   - Suggested depth: low → quick, medium → standard, high → deep. A high tier by domain, size or breadth **suggests** deep, without a floor: picking standard raises no warning.
-- **Second opinion (the `triage` agent, `.agents/triage.md`)**, the Claude Code team's "second classifier": the rules see paths and sizes; the agent reads the change and says whether the weight fits **this PR**. It keeps, raises or lowers one level, always with a reason, recorded by `triage --assess <tier> <depth> --reason "..."` in `rounds[-1].agent`. The card shows it (`agent  lower  high/deep → medium/standard  <reason>`) and starts suggesting the agent's depth; the decision is still yours.
+- **Second opinion (the `triage` agent, `.agents/skills/bugbot-triage/SKILL.md`)**, the Claude Code team's "second classifier": the rules see paths and sizes; the agent reads the change and says whether the weight fits **this PR**. It keeps, raises or lowers one level, always with a reason, recorded by `triage --assess <tier> <depth> --reason "..."` in `rounds[-1].agent`. The card shows it (`agent  lower  high/deep → medium/standard  <reason>`) and starts suggesting the agent's depth; the decision is still yours.
   - Limits applied by the CLI (outside them the assessment is refused, exit 2, never adjusted): lower at most **one level** of tier and of depth; **never below the floor** of a `sensitive` (nor below the high tier it gives): only you go below that, with `--depth`, and it is recorded as `below_floor`; one direction only (it does not raise one and lower the other); reason required, one line.
   - It applies to the assessed head: a new commit opens another round and the previous assessment is not reused.
   - Calibration: the agent adjusts **one PR**; the rule only changes when you change `repos/*.json`. `triage.json` keeps the three voices side by side — rules (top level), agent (`rounds[].agent`), you (`rounds[].decision`) — and that is what the `/retro` will cross per rule: a domain the agent almost always lowers, with a clean review and you agreeing, is too strict ("start strict and loosen with evidence").
@@ -1312,6 +1312,8 @@ How it rewrites safely:
 ```
 .editorconfig           code style (editor) — `bugbot format` applies the same to the bot's JSON files
 bin/bugbot              dispatcher: resolves paths, loads the core, calls bb_cmd_<command>
+.agents/skills/<name>/  one skill per role: SKILL.md + agents/openai.yaml (bugbot, bugbot-triage, bugbot-finder-*, bugbot-verifier, bugbot-retro);
+                        bugbot/references/ holds the rules every role shares
 lib/core/               shared between commands
   schema.py             JSON Schema validator (stdlib) and validated file reading
   harness.py            who ran each output: model, effort and session, read from the harness logs

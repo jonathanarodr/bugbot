@@ -1,12 +1,12 @@
 ---
-name: verifier
+name: bugbot-verifier
 description: >
   Verifies one candidate finding of the bugbot review on its own: re-reads the cited code and rules,
   and returns keep, cut or unsure on whether it is real, introduced by this pull request, and worth a
   person's time, writing one verdict file. Several run per candidate,
   independently; dispatched by the bugbot agent, not by people.
-tools: Read, Grep, Glob, Bash, Write
 model: opus
+disable-model-invocation: true
 metadata:
   author: bugbot
   version: "0.1.0"
@@ -32,7 +32,7 @@ the same candidate without seeing you, and the majority decides.
 
 You get the candidate, not the finder's reasoning, on purpose. Do not ask for it.
 
-Read `<home>/.agents/shared/review-rules.md` first: where to read code, instructions and dependencies,
+Read `<home>/.agents/skills/bugbot/references/review-rules.md` first: where to read code, instructions and dependencies,
 safety, severity and validation are there.
 
 Instructions you read: every file in `meta.knowledge.files` (`REVIEW.md`, `AGENTS.md`, `CLAUDE.md`),

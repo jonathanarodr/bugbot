@@ -2,7 +2,7 @@
 """Which model, effort and session ran each sub-agent of a PR round, read from the harness's logs.
 
 The orchestrator names every dispatch after the file it writes, `bugbot:<repo name>#<number>:<output>`
-(.agents/bugbot.md); this finds that name in the logs and returns, per output, the last run's
+(.agents/skills/bugbot/SKILL.md); this finds that name in the logs and returns, per output, the last run's
 {model, effort, session, run}: run is the sub-agent's own id, since sub-agents share the
 orchestrator's session. Sessions never go into file names: the name is the output's address.
 

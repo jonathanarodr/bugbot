@@ -114,7 +114,7 @@
       ],
       "properties": {
         "model": {
-          "description": "Model that actually ran (may differ from the agent's frontmatter).",
+          "description": "Model that actually ran (may differ from the skill's frontmatter `model:`).",
           "type": "string"
         },
         "effort": {

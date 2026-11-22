@@ -7,6 +7,7 @@ description: >
   requests it or the bugbot orchestrator dispatches it; nothing is applied without approval. Use
   when the person asks for a retro, post-mortem or calibration of a bugbot review, or when the bugbot
   orchestrator invokes it after publishing an APPROVE and `retro.auto_on_approve` is enabled.
+model: sonnet
 disable-model-invocation: true
 metadata:
   author: bugbot
@@ -44,12 +45,12 @@ not infer trends from one round.
    `triage.json` (tier, depth, scope, `rounds[]` with the agent's and the person's decision),
    `preflight.json`, `candidates/*.json`, `verdicts/*.json`, `findings.json` and, on a later round,
    `previous-findings.json`. The schemas in `schemas/` and README **Schemas** say what each field
-   means. Read the agent that wrote a file (`.agents/<name>.md`) before judging it.
+   means. Read the agent that wrote a file (`.agents/skills/<name>/SKILL.md`) before judging it.
 
 3. **Read the session**, only to explain a candidate from step 2. Each output's `agent.session` is
    the harness session and `agent.run` the sub-agent's id in it; its log has the dispatch named `bugbot:<repo name>#<N>:<output>` (README
    **Quem rodou cada output**): tool calls, retries, errors, the model that ran. An `agent.model`
-   other than the agent's frontmatter `model:` is a candidate (*Tool economy*).
+   other than the skill's frontmatter `model:` is a candidate (*Tool economy*).
 
 4. **Read the person's side**, when the round was published: the bot's review on the pull request
    (marker `<!-- bugbot:v<N> sha=<head> ... -->`) and each inline thread by its fingerprint
@@ -66,8 +67,8 @@ not infer trends from one round.
    - `no answer`: nothing yet; it counts for nothing.
    The share of `wrong` + `intended` + `not worth it` among answered findings is the round's noise.
 
-5. **Read the steering that ran the round**: the agents that wrote its files (`.agents/*.md`), the
-   shared rules (`.agents/shared/`), the repo's config
+5. **Read the steering that ran the round**: the agents that wrote its files (`.agents/skills/*/SKILL.md`), the
+   shared rules (`.agents/skills/bugbot/references/`), the repo's config
    (`repos/<owner>/<name>.json`), `bugbot.json` and the repo's knowledge sources (`REVIEW.md`, `AGENTS.md`, `CLAUDE.md` in `meta.knowledge`).
    Audit them against what the round did, not in the abstract: a rule the round needed and no file
    had, a rule an agent broke or followed into a wrong result, two files that say the same or the
@@ -143,7 +144,7 @@ not infer trends from one round.
   `over review.max_lows`) on a round whose posted Lows the person ignored, or never reached. _Use
   when_ the round's shape came from config, not from judgement.
 - **Run**: a command that failed, an output the schema refused, a step the orchestrator skipped or
-  repeated. _Use when_ the run did not go as `.agents/bugbot.md` says.
+  repeated. _Use when_ the run did not go as `.agents/skills/bugbot/SKILL.md` says.
 
 ## Severity
 
@@ -165,11 +166,22 @@ for a rule change, say it is a single case and propose watching it instead of ch
 | What a repo reviews and how deep | `repos/<owner>/<name>.json` (domains, tiers, globs) |
 | A repo's own rules and conventions | its `REVIEW.md` (proposed to the repo's owners, not edited here) |
 | What is correct in a repo's stack | its `AGENTS.md`/`CLAUDE.md` (proposed to the repo's owners, not edited here) |
-| How every finder raises a candidate | `.agents/shared/finder-rules.md`, or the finder's own file |
-| How every review output is written | `.agents/shared/review-rules.md` |
-| How a candidate is judged | `.agents/verifier.md` |
-| Weight, scope and preflight of a pull request | `.agents/triage.md` |
-| Order of the run, dispatch, report | `.agents/bugbot.md` |
+| How every finder raises a candidate | `.agents/skills/bugbot/references/finder-rules.md`, or the finder's own file |
+| How every review output is written | `.agents/skills/bugbot/references/review-rules.md` |
+| How a candidate is judged | `.agents/skills/bugbot-verifier/SKILL.md` |
+| Weight, scope and preflight of a pull request | `.agents/skills/bugbot-triage/SKILL.md` |
+| Order of the run, dispatch, report | `.agents/skills/bugbot/SKILL.md` |
 
 Prefer the narrowest file: a rule for one repository goes in its own `REVIEW.md` or `AGENTS.md`, not in the shared rules; the bot itself holds no stack knowledge.
 Before adding text, look for the instruction it would repeat or contradict.
+
+## When the bugbot orchestrator dispatches it
+
+The caller supplies the PR, `home` (the bot's absolute path), the absolute CLI path and the
+trigger. For `auto_approve`, the caller has confirmed that this run successfully posted an
+`APPROVE`: do not ask for confirmation and do not publish anything.
+
+Read only the named PR's cache, steering files, harness evidence and GitHub review and thread data
+the retrospective needs. Do not change bot code or configuration. Persist the concise, code-free
+result with `$BB retro record <pr> --trigger <trigger>` before reporting success; if it cannot be
+saved, say so plainly, so the caller does not recommend cleaning the PR's cache.

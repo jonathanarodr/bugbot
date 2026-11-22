@@ -25,7 +25,7 @@ candidate that will not survive verification costs a verifier run and teaches no
 
 ## Ground rules
 
-Read `.agents/shared/review-rules.md` first: where to read code and instructions, safety, severity
+Read `.agents/skills/bugbot/references/review-rules.md` first: where to read code and instructions, safety, severity
 and validation are there. On top of it:
 
 - **Stay in your lane**: your domains and your focus. Other finders cover the rest.
