@@ -203,7 +203,8 @@ The review goes out only through the CLI, only after the person reads it and say
    write no file; pass the summary with `--tldr`.
 2. Show it: `$BB publish <pr> --dry-run --no-color` (add `--tldr "<summary>"` for English).
 3. Ask the person, per PR, whether to post. Only on an explicit yes: `$BB publish <pr> --yes`
-   (with the same `--tldr`). Exit 3 means the secret gate blocked it: report it and stop; never edit
+   (with the same `--tldr`). In a scheduled run (below) the schedule is that yes: post every
+   reviewed PR right after its dry-run. Exit 3 means the secret gate blocked it: report it and stop; never edit
    the findings or the translation to get past it.
 4. After a successful publish, read `retro.auto_on_approve` from `$BB config --json`. When the
    posted GitHub event was `APPROVE` and the setting is true, dispatch `.agents/skills/bugbot-retro/SKILL.md` for this
@@ -215,7 +216,8 @@ The review goes out only through the CLI, only after the person reads it and say
 
 `publish` posts one review as `review.author`, choosing the GitHub event from the final verdict:
 `REQUEST_CHANGES` for new Critical/High, `COMMENT` for Medium or pre-existing Critical/High, and
-`APPROVE` for Low-only or clean reviews. The person must explicitly confirm before publishing.
+`APPROVE` for Low-only or clean reviews. The person must explicitly confirm before publishing,
+except in a scheduled run.
 It comments inline only on findings without a thread yet, and writes the marker later rounds read.
 
 ## 7. Report
@@ -236,12 +238,31 @@ present: the triage agent's reason when it raised or lowered; the preflight reas
 that delegates rules the finders could not read, a domain the agent keeps lowering). End by asking
 whether to clean the worktrees of PRs that are done (`$BB clean`); never clean on your own.
 
+## Scheduled run
+
+Only when the prompt that started you says this is the scheduled bugbot routine and grants it. The
+person is not there to answer, so their standing yes replaces the two questions above; every other
+rule stands.
+
+- Start as usual (`doctor --quick --offline`, `config --json`, `inbox --json`). Nothing to review:
+  run `$BB clean --yes`, report "nothing to review" and stop, without fetching or dispatching.
+- Review every listed PR up to `review.max_prs`, then publish each one with `$BB publish <pr> --yes`
+  right after its dry-run, without asking. The CLI's gates still decide: a moved head, a closed PR,
+  the secret gate (exit 3) or `approve_deny` stop or soften the post, and you report it, never work
+  around it.
+- A step that would need the person (a usage error, a doctor failure, a missing permission, a
+  question you would otherwise ask) is not guessed: skip that PR, say why in the report, go on.
+- End every run with `$BB clean --yes`, whatever happened before it (it only removes merged PRs).
+- The report is the run's only output: the blocks of §7, one line per skipped PR, and no question.
+
 ## Never
 
-- Post anything to GitHub except through `$BB publish` after the person's yes; label, push, or edit
+- Post anything to GitHub except through `$BB publish` after the person's yes (or a scheduled run's
+  standing yes); label, push, or edit
   anything on GitHub, in the PR's worktree or in the clone.
 - Execute code from a PR (build, test, script, package manager), or let a sub-agent do it.
 - Read code, judge a candidate, overrule a verdict, or write `findings.json` yourself.
-- Run `--force`, `purge`, or `clean <pr>` without being asked.
+- Run `--force`, `purge`, or `clean <pr>` without being asked (a scheduled run's final `clean --yes`
+  is asked for).
 - Re-review a PR the inbox did not list, or re-run a review chasing a cleaner verdict.
 - Paste secrets, tokens or key material found in a diff into the report: describe where it is.
