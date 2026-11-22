@@ -1,0 +1,5 @@
+interface:
+  display_name: "Bugbot Verifier"
+  short_description: "Verify one candidate finding: real, from this PR, worth a person's time."
+policy:
+  allow_implicit_invocation: false

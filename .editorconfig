@@ -1,0 +1,19 @@
+# Code style of the bot. Editors apply it while typing; `bugbot doctor` (group format) rewrites
+# bugbot.json, bugbot.local.json, workspace.json, schemas/*.json and repos/*/*.json to the same
+# style and warns about every file it had to fix. Keep both in sync.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+[*.py]
+indent_size = 4
+
+[*.md]
+trim_trailing_whitespace = false
+

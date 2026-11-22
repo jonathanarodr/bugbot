@@ -1,0 +1,203 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "bugbot/inbox.schema.json",
+  "title": "bugbot inbox",
+  "description": "inbox.json, written by `bugbot inbox` to the run directory: open PRs whose review was requested from you (by name or through your teams) in the workspace's repositories, filtered by the hooks. Disposable: rebuilt on every run.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "query",
+    "me",
+    "at",
+    "searched",
+    "items",
+    "hidden"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "version": {
+      "const": 1
+    },
+    "query": {
+      "description": "The GitHub search string, built from the hooks (draft, labels, stale_days as an updated: lower bound) and the workspace repositories.",
+      "type": "string"
+    },
+    "me": {
+      "description": "Login gh acts as.",
+      "type": "string"
+    },
+    "at": {
+      "type": "string"
+    },
+    "searched": {
+      "description": "PRs the search returned, before the per-PR hooks.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "items": {
+      "description": "PRs to review, grouped by repository (most recent activity first) and, inside a repository, most recent activity first.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/item"
+      }
+    },
+    "hidden": {
+      "description": "PRs the search returned but a per-PR hook or an earlier decision left out, with why.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/item"
+      }
+    }
+  },
+  "$defs": {
+    "item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repo",
+        "pr",
+        "title",
+        "url",
+        "author",
+        "head",
+        "draft",
+        "created_at",
+        "updated_at",
+        "age_days",
+        "active_days",
+        "last_commit_at",
+        "idle_days",
+        "requested",
+        "direct",
+        "reviewers",
+        "reviewers_max",
+        "ci"
+      ],
+      "properties": {
+        "repo": {
+          "description": "owner/name.",
+          "type": "string"
+        },
+        "pr": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "title": {
+          "description": "For display only; never fed to triage.",
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "author": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "head": {
+          "description": "Head commit sha when listed.",
+          "type": "string"
+        },
+        "draft": {
+          "type": "boolean"
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "updated_at": {
+          "type": "string"
+        },
+        "age_days": {
+          "description": "Days since the PR was opened.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "active_days": {
+          "description": "Days since the last activity on the PR (updatedAt: commits, comments, reviews).",
+          "type": "integer",
+          "minimum": 0
+        },
+        "last_commit_at": {
+          "description": "Committer date of the head commit.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "idle_days": {
+          "description": "Days since the head commit (what hooks.stale_days measures).",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "requested": {
+          "description": "Review requests that reach you: your login and your teams (org/slug).",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "direct": {
+          "description": "Requested from you by name, not only through a team.",
+          "type": "boolean"
+        },
+        "reviewers": {
+          "description": "People counted by reviewers.max, same rule as triage.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "reviewers_max": {
+          "description": "Effective hooks.reviewers.max for the repository (0: no limit).",
+          "type": "integer",
+          "minimum": 0
+        },
+        "ci": {
+          "description": "Required checks of the head, as `gh pr checks --required` buckets them: pass, fail, pending, none (no required check: CI not gating) or unread.",
+          "enum": [
+            "pass",
+            "fail",
+            "pending",
+            "none",
+            "unread"
+          ]
+        },
+        "hidden_by": {
+          "description": "Only in `hidden`: what left the PR out.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "rule",
+            "reason"
+          ],
+          "properties": {
+            "rule": {
+              "description": "A hook (stale_days, exclude_teams, reviewers.max, ci), `decided` (this head already has a triage decision) or `config` (invalid repo config).",
+              "enum": [
+                "stale_days",
+                "exclude_teams",
+                "reviewers.max",
+                "labels.skip",
+                "labels.trigger",
+                "draft",
+                "ci",
+                "decided",
+                "config"
+              ]
+            },
+            "reason": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  }
+}

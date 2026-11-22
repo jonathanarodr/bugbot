@@ -1,0 +1,321 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "bugbot/settings.schema.json",
+  "title": "bugbot settings",
+  "description": "bugbot.json (created by `bugbot init` from each setting's x-init) and bugbot.local.json (personal overrides, any subset of the same keys). Precedence: command-line flag > environment > bugbot.local.json > bugbot.json. Each setting's environment variable is in x-env.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "github": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "org": {
+          "description": "GitHub owner, an organization or a user, whose repositories setup offers. Empty or left out: clones of any owner on GitHub, chosen in the selector (personal repositories, several organizations).",
+          "type": "string",
+          "pattern": "^([A-Za-z0-9][A-Za-z0-9-]*)?$",
+          "default": "",
+          "x-env": "BUGBOT_ORG"
+        },
+        "app": {
+          "description": "GitHub App the bot acts as for the repositories of one owner, instead of the person's gh login: every read and write on those repositories uses an installation token, and reviews are posted as <slug>[bot]. Off while id is 0. Repositories of other owners keep using the gh login.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "owner": {
+              "description": "Account (organization or user) the App is installed on; only its repositories use the App.",
+              "type": "string",
+              "pattern": "^([A-Za-z0-9][A-Za-z0-9-]*)?$",
+              "default": "",
+              "x-env": "BUGBOT_APP_OWNER"
+            },
+            "id": {
+              "description": "The App's ID (App settings → About). 0: no App, every call uses the gh login.",
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "x-env": "BUGBOT_APP_ID"
+            },
+            "installation_id": {
+              "description": "ID of the App's installation on owner (github.com/organizations/<owner>/settings/installations/<id>).",
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "x-env": "BUGBOT_APP_INSTALLATION_ID"
+            },
+            "slug": {
+              "description": "The App's slug: reviews are posted, and recognized as the bot's, as <slug>[bot].",
+              "type": "string",
+              "pattern": "^([a-z0-9][a-z0-9-]*)?$",
+              "default": "",
+              "x-env": "BUGBOT_APP_SLUG"
+            },
+            "keychain_service": {
+              "description": "macOS Keychain service holding the App's private key, base64-encoded (security add-generic-password -s <service> -a \"$USER\" -w \"$(base64 -i key.pem)\"). The key is never written to disk.",
+              "type": "string",
+              "default": "",
+              "x-env": "BUGBOT_APP_KEYCHAIN_SERVICE"
+            }
+          }
+        }
+      }
+    },
+    "scan": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "roots": {
+          "description": "Directories scanned by setup. A leading ~ is the home of whoever runs it.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/text"
+          },
+          "x-env": "BUGBOT_SCAN_ROOTS",
+          "x-init": [
+            "~"
+          ]
+        },
+        "depth": {
+          "description": "Maximum scan depth below each root, counted to the clone's .git folder: 5 finds ~/a/b/c/repo (repo four levels below ~).",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8,
+          "x-env": "BUGBOT_SCAN_DEPTH",
+          "x-init": 5
+        },
+        "prune": {
+          "description": "Directory names the scan never descends into.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/text"
+          },
+          "x-env": "BUGBOT_SCAN_PRUNE",
+          "x-init": [
+            "node_modules",
+            "Library",
+            "build",
+            ".Trash",
+            "Pods",
+            "DerivedData"
+          ]
+        },
+        "inspect_jobs": {
+          "description": "Clones inspected in parallel.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 32,
+          "x-env": "BUGBOT_INSPECT_JOBS",
+          "x-init": 8
+        }
+      }
+    },
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "author": {
+          "description": "Who posts the bot's reviews, and so whose reviews mark a round: `@me` (the gh user running the bot, default) or a login (a GitHub App bot such as `my-app[bot]`). A review counts as a bot round only when its author is this login and its body carries the marker: anyone can write the marker in a comment, nobody else can post as this author.",
+          "type": "string",
+          "pattern": "^(@me|[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})(\\[bot\\])?)$",
+          "x-env": "BUGBOT_REVIEW_AUTHOR",
+          "x-init": "@me"
+        },
+        "marker_version": {
+          "description": "Version of the HTML marker every bot review carries: <!-- bugbot:v<N> sha=<head> round=<n> verdict=<verdict> -->. The marker is how a later round finds the previous one on GitHub, with no local state: the head it reviewed and how many rounds the PR had. Bump it only when the marker format changes.",
+          "type": "integer",
+          "minimum": 1,
+          "x-env": "BUGBOT_MARKER_VERSION",
+          "x-init": 1
+        },
+        "language": {
+          "description": "Language of what the bot posts on the pull request (comments, review body), as a BCP 47 tag: en, pt-BR, es. Everything else stays in English: candidates, verdicts, findings.json, logs and the CLI. Findings are translated when the review is written for publishing, so their fingerprint (file and English title) does not change with the language.",
+          "type": "string",
+          "pattern": "^[a-z]{2,3}(-[A-Z]{2}|-[A-Z][a-z]{3})?$",
+          "x-env": "BUGBOT_REVIEW_LANGUAGE",
+          "x-init": "en"
+        },
+        "parallel": {
+          "description": "PRs the review agent reviews at the same time (the batch size). Each review runs its own finders and verifiers, so this multiplies the load on the machine and the model quota. Must not exceed max_prs.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8,
+          "x-env": "BUGBOT_REVIEW_PARALLEL",
+          "x-init": 2
+        },
+        "max_prs": {
+          "description": "Most PRs one review run takes from the inbox (the work in progress of a run), reviewed in batches of `parallel`; the rest wait for the next run. Keeps one run from turning a backlog into an endless session or one tick from spending the whole quota.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50,
+          "x-env": "BUGBOT_REVIEW_MAX_PRS",
+          "x-init": 6
+        },
+        "delta_from_round": {
+          "description": "Round from which the review looks only at what changed in the PR since the last decided round (the delta), not the whole diff. Earlier rounds review the whole diff. A round where the PR itself did not change (only a sync with the base) is not reviewed again. `triage --full` forces a whole review on one round.",
+          "type": "integer",
+          "minimum": 2,
+          "x-env": "BUGBOT_REVIEW_DELTA_FROM_ROUND",
+          "x-init": 3
+        },
+        "max_rounds": {
+          "description": "Rounds the bot reviews before it stops and suggests rethinking the approach: past this, triage records the round as capped and the agent reviews nothing. `triage --full` reviews one more round anyway.",
+          "type": "integer",
+          "minimum": 1,
+          "x-env": "BUGBOT_REVIEW_MAX_ROUNDS",
+          "x-init": 3
+        },
+        "max_lows": {
+          "description": "Most Low findings one round posts. findings keeps the first ones by rank (those already posted, then new before pre-existing, then file and line) and cuts the rest with the reason `over review.max_lows`, so they stay in the audit. Critical, High and Medium findings are never cut. 0 or left out: no limit.",
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "x-env": "BUGBOT_REVIEW_MAX_LOWS",
+          "x-init": 5
+        }
+      }
+    },
+    "retro": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "auto_on_approve": {
+          "description": "Automatically run the bugbot-retro skill after `publish` successfully posts an APPROVE review. The retrospective is saved under BUGBOT_RETRO_DIR before cleanup; approvals by other reviewers do not trigger it.",
+          "type": "boolean",
+          "default": false,
+          "x-env": "BUGBOT_RETRO_AUTO_ON_APPROVE",
+          "x-init": true
+        }
+      }
+    },
+    "triage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "large_diff": {
+          "description": "A PR with more production lines than this (files outside low-risk domains, tests and ignore) goes one tier up.",
+          "type": "integer",
+          "minimum": 1,
+          "x-env": "BUGBOT_TRIAGE_LARGE_DIFF",
+          "x-init": 1000
+        },
+        "broad_change": {
+          "description": "A PR touching this many production domains or more (not low risk, outside tests and ignore) goes one tier up. 0: off. Needs domains in the repo config; without them every top-level directory counts as one.",
+          "type": "integer",
+          "minimum": 0,
+          "x-env": "BUGBOT_TRIAGE_BROAD_CHANGE",
+          "x-init": 3
+        }
+      }
+    },
+    "hooks": {
+      "description": "When a pull request is reviewed at all, decided before the triage card (inspired by Renovate's prCreation and stopUpdatingLabel). Evaluated in order: draft, labels.skip, labels.trigger, reviewers.max, ci. Every hook applies to every tier: skipping a high-tier PR is a risk the configuration takes explicitly. Labels match case-insensitively. Read live from GitHub on every triage, since labels, draft and CI change without a new commit.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "draft": {
+          "description": "Review draft pull requests. false: a draft is skipped until it is marked ready for review.",
+          "type": "boolean",
+          "x-env": "BUGBOT_HOOKS_DRAFT",
+          "x-init": false
+        },
+        "stale_days": {
+          "description": "Skip a PR whose last commit is this many days old or older (committer date of the head commit): it is probably abandoned, and a new commit brings it back. 0: never stale.",
+          "type": "integer",
+          "minimum": 0,
+          "x-env": "BUGBOT_HOOKS_STALE_DAYS",
+          "x-init": 30
+        },
+        "exclude_teams": {
+          "description": "Teams (org/slug) whose review requests do not count as yours. A PR is skipped when every request that reaches you, directly or through your teams, comes from one of them; a request to you by name always counts. Empty: no team excluded.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/team"
+          },
+          "x-env": "BUGBOT_HOOKS_EXCLUDE_TEAMS",
+          "x-init": []
+        },
+        "labels": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "skip": {
+              "description": "A PR with any of these labels is skipped, whatever its tier.",
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/label"
+              },
+              "x-env": "BUGBOT_HOOKS_SKIP_LABELS",
+              "x-init": []
+            },
+            "trigger": {
+              "description": "When not empty, only a PR with one of these labels is reviewed. Empty: every PR.",
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/label"
+              },
+              "x-env": "BUGBOT_HOOKS_TRIGGER_LABELS",
+              "x-init": []
+            }
+          }
+        },
+        "ci": {
+          "description": "passed: review only when every required check passed (a failed check skips, a running one waits; a PR with no required checks is reviewed). any: ignore CI.",
+          "enum": [
+            "passed",
+            "any"
+          ],
+          "x-env": "BUGBOT_HOOKS_CI",
+          "x-init": "passed"
+        },
+        "reviewers": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "max": {
+              "description": "Skip a PR once this many distinct people have reviewed it (latest review APPROVED or CHANGES_REQUESTED). Bots, logins in ignore, the PR author, the reviewer running the bot and dismissed or comment-only reviews are not counted. 0: no limit.",
+              "type": "integer",
+              "minimum": 0,
+              "x-env": "BUGBOT_HOOKS_REVIEWERS_MAX",
+              "x-init": 3
+            },
+            "ignore": {
+              "description": "Logins never counted as reviewers, for service accounts GitHub reports as users.",
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/label"
+              },
+              "x-env": "BUGBOT_HOOKS_REVIEWERS_IGNORE",
+              "x-init": []
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+    },
+    "label": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]*\\S[^\\u0000-\\u001f\\u007f]*$",
+      "description": "A GitHub label name: not blank. Compared case-insensitively."
+    },
+    "team": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9][A-Za-z0-9._-]*$",
+      "description": "A GitHub team as org/slug, as gh reports review requests. Compared case-insensitively."
+    }
+  }
+}

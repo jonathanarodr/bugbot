@@ -1,0 +1,179 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "bugbot/preflight.schema.json",
+  "title": "bugbot preflight plan",
+  "description": "preflight.json: how this pull request could be prepared and checked locally, if at all. Written by the triage agent from what the repository documents on its base branch; read by the person and, later, by local checks. A plan only: nothing in it has been executed. Fetch deletes it when the PR's head changes: a plan here is always for the current head.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "outcome",
+    "reason",
+    "sources",
+    "steps",
+    "covers",
+    "uncovered",
+    "blocked_by"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "version": {
+      "const": 1
+    },
+    "outcome": {
+      "description": "none: nothing in the diff benefits from running anything. blocked: the PR touches a file that decides what runs (triage local_exec, or a setup step's own source). proposed: steps below, each backed by a quote from the repository. unknown: the repository does not document how to prepare or check it.",
+      "enum": [
+        "none",
+        "blocked",
+        "proposed",
+        "unknown"
+      ]
+    },
+    "reason": {
+      "description": "One line on why this outcome, in terms of the diff and the repository: what changed and what the repository documents.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 400
+    },
+    "sources": {
+      "description": "Files read to learn how the repository is prepared and checked, all from the base branch.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "ref"
+        ],
+        "properties": {
+          "path": {
+            "description": "Path from the repository root.",
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[^/]"
+          },
+          "ref": {
+            "description": "Commit it was read at (meta.json knowledge.ref).",
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}$"
+          }
+        }
+      }
+    },
+    "steps": {
+      "description": "Ordered steps to prepare and check the worktree; empty unless outcome is proposed.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "purpose",
+          "command",
+          "cwd",
+          "why",
+          "source",
+          "reuses",
+          "cost"
+        ],
+        "properties": {
+          "id": {
+            "description": "Short name, unique in the plan (setup, unit-tests...).",
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,40}$"
+          },
+          "purpose": {
+            "description": "setup prepares the worktree (dependencies, toolchain); the others produce a result about the change.",
+            "enum": [
+              "setup",
+              "build",
+              "test",
+              "lint",
+              "typecheck",
+              "other"
+            ]
+          },
+          "command": {
+            "description": "The command as the repository documents it, narrowed only by dropping targets or paths that cover no changed file.",
+            "type": "string",
+            "minLength": 1
+          },
+          "cwd": {
+            "description": "Directory to run it in, relative to the worktree root; . for the root.",
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[^/]"
+          },
+          "why": {
+            "description": "Which changed files this step exercises, or what later step needs it.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "source": {
+            "description": "Where the repository documents this command: a file read from the base and the sentence or line quoted verbatim.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "quote"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[^/]"
+              },
+              "quote": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "reuses": {
+            "description": "Caches outside the worktree the step can reuse without changing its result (a build tool's own cache, a package manager's download cache). Never dependency directories of the clone.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "cost": {
+            "description": "Rough cost on a developer machine: low (seconds), medium (minutes), high (many minutes or gigabytes).",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        }
+      }
+    },
+    "covers": {
+      "description": "Changed files the proposed steps exercise.",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "uncovered": {
+      "description": "Changed files that are built, executed or type-checked and no step exercises: reviewed by reading only. Never prose, images or binaries.",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "blocked_by": {
+      "description": "Changed files that block running anything: triage local_exec.denied_by, plus any file a step's source or command depends on that the PR changes.",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  }
+}

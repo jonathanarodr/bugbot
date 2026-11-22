@@ -1,0 +1,42 @@
+# What stays out of version control: everything personal (paths, login, calibration choices),
+# everything the bot regenerates, and third-party PR data. See README.md, "O que é seu e o que é
+# do bot". Versioned: bin/, lib/, schemas/, README.md, .editorconfig, .gitignore.
+
+# Runtime cache and data: disposable, recreated on every run.
+# runs/ logs · cache/ diff, meta, triage per PR · worktrees/ checkouts · state/ locks
+/.bugbot/
+
+# Retro: permanent record of review decisions per PR, read by `bugbot retro`.
+# Not cache (purge only deletes it with --retro), but personal: it holds third-party PR data.
+/retro/
+
+# Eval set (reserved): curated PRs with confirmed bugs; third-party code, never shared here.
+/evals/
+
+# Personal configuration written by `bugbot setup`: clone paths and the gh login of whoever runs it.
+/workspace.json
+
+# Per-repository review rules: created by `bugbot setup`, calibrated by each reviewer.
+/repos/
+
+# Settings written by `bugbot init` (defaults from schemas/settings.schema.json x-init) and
+# personal overrides on top of them.
+/bugbot.json
+/bugbot.local.json
+
+# Atomic writes: temporary files renamed over the target; left behind only if a run is killed.
+.workspace.*.json
+.bugbot.json.*
+*.tmp
+*.format-tmp
+
+# Claude Code: personal settings (.claude/skills is a versioned symlink to .agents/skills)
+/.claude/settings.local.json
+
+# Editors, system and Python noise
+.DS_Store
+.idea/
+.vscode/
+*.swp
+__pycache__/
+*.pyc

@@ -1,0 +1,108 @@
+#!/bin/zsh
+# bugbot — local toolkit for assisted code review across the repositories of a GitHub organization.
+#
+# This file only resolves paths, loads the shared core and dispatches to
+# lib/commands/<command>.sh. Every command lives in its own file; the steps that belong to
+# one command only live in lib/<command>/ and are loaded for that command alone.
+
+emulate -L zsh
+setopt no_unset pipe_fail
+
+# Width and truncation count characters, not bytes, only under a UTF-8 locale. A shell
+# launched without one (cron, an IDE, an agent) would misalign every accented label.
+if [[ ${LC_ALL:-${LC_CTYPE:-${LANG:-}}} != *(UTF-8|utf8|UTF8)* ]]; then
+  export LC_CTYPE=en_US.UTF-8
+fi
+
+# BUGBOT_HOME is always where this script really lives (symlinks resolved), so the bot works from
+# any clone location. The value the environment had is kept for `doctor`, and so agents, which
+# find the CLI through $BUGBOT_HOME, can be told when it points somewhere else.
+typeset -g BB_ENV_HOME=${BUGBOT_HOME:-}
+typeset -g BUGBOT_HOME=${${(%):-%x}:A:h:h}
+typeset -g BUGBOT_WORKSPACE_FILE=${BUGBOT_WORKSPACE_FILE:-$BUGBOT_HOME/workspace.json}
+typeset -g BUGBOT_DATA_DIR=${BUGBOT_DATA_DIR:-$BUGBOT_HOME/.bugbot}
+typeset -g BUGBOT_RETRO_DIR=${BUGBOT_RETRO_DIR:-$BUGBOT_HOME/retro}
+
+source "$BUGBOT_HOME/lib/core/settings.sh"
+source "$BUGBOT_HOME/lib/core/term.sh"
+source "$BUGBOT_HOME/lib/core/say.sh"
+source "$BUGBOT_HOME/lib/core/board.sh"
+source "$BUGBOT_HOME/lib/core/run.sh"
+source "$BUGBOT_HOME/lib/core/select.sh"
+source "$BUGBOT_HOME/lib/core/git.sh"
+source "$BUGBOT_HOME/lib/core/gh.sh"
+source "$BUGBOT_HOME/lib/core/lock.sh"
+source "$BUGBOT_HOME/lib/core/pr.sh"
+
+bb_usage() {
+  print -u2 "usage: bugbot <command> [options]
+
+Commands:
+  init      create bugbot.json with the default values ([--org <name>])
+  setup     find local clones, write workspace.json and default repo configs
+  fetch     bring a PR to this machine: diff, metadata and optional worktree
+  inbox     list PRs whose review was requested from you, pick, fetch and triage
+  triage    compute a PR's tier, depth and scope and record your decision
+  findings  assemble and show a PR's findings.json from candidates and verdicts
+  validate  check a JSON file an agent wrote against its schema
+  publish   post a PR round's findings as one GitHub review, after you confirm
+  retro     append a retrospective report to the permanent per-PR record
+  clean     remove worktree, refs and cache of merged PRs
+  purge     delete everything the bot created, whatever the PR state
+  config    show the resolved settings and where each came from
+  doctor    check the bot's health: tools, settings, schemas, repos, docs
+  format    rewrite the bot's JSON files to the code style (.editorconfig)
+
+  bugbot <command> --help for the options of each command
+
+Configuration (formats in schemas/):
+  bugbot.json             settings, created by 'bugbot init'
+  bugbot.local.json       personal overrides (optional, same keys)
+  repos/<owner>/<name>.json  review rules per repository
+
+Environment:
+  BUGBOT_HOME             where the bot is cloned; agents find bin/bugbot through it
+  BUGBOT_WORKSPACE_FILE   default: $BUGBOT_HOME/workspace.json
+  BUGBOT_DATA_DIR         default: $BUGBOT_HOME/.bugbot   (disposable)
+  BUGBOT_RETRO_DIR        default: $BUGBOT_HOME/retro     (permanent)"
+}
+
+bb_require() {
+  local tool
+  for tool in "$@"; do
+    (( $+commands[$tool] )) || { print -u2 "bugbot: '$tool' not found in PATH"; exit 2 }
+  done
+}
+
+trap bb_on_interrupt INT TERM
+trap bb_on_exit EXIT
+trap bb_term_refresh WINCH
+
+case ${1:-} in
+  ''|-h|--help|help) bb_usage; exit 0 ;;
+esac
+
+typeset -g BB_COMMAND=$1
+shift
+
+if [[ ! $BB_COMMAND =~ '^[a-z]+$' || ! -f $BUGBOT_HOME/lib/commands/$BB_COMMAND.sh ]]; then
+  print -u2 "bugbot: unknown command: $BB_COMMAND"
+  bb_usage
+  exit 2
+fi
+
+# doctor diagnoses broken settings and missing tools, and format fixes the files settings come
+# from, so neither must be stopped by them; init creates bugbot.json, so it cannot need it.
+# format, validate and init only need python3 (checked here).
+if [[ $BB_COMMAND == (format|validate|init) ]]; then
+  bb_require python3
+elif [[ $BB_COMMAND != doctor ]]; then
+  bb_settings_load
+  bb_require git python3 gh
+fi
+
+local step
+for step in "$BUGBOT_HOME/lib/$BB_COMMAND"/*.sh(N); do source "$step"; done
+source "$BUGBOT_HOME/lib/commands/$BB_COMMAND.sh"
+
+bb_cmd_$BB_COMMAND "$@"

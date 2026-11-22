@@ -1,0 +1,5 @@
+interface:
+  display_name: "Bugbot Bug Finder"
+  short_description: "Find behavior bugs and stale docs in one domain of a PR."
+policy:
+  allow_implicit_invocation: false

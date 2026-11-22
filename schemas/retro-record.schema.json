@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "bugbot/retro-record.schema.json",
+  "title": "bugbot retrospective record",
+  "description": "One append-only retrospective event stored under BUGBOT_RETRO_DIR/<owner>/<repo>/pr-<N>.jsonl. Contains review metadata and proposed learning, not code excerpts or full PR threads.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "type",
+    "repo",
+    "pr",
+    "head",
+    "round",
+    "verdict",
+    "trigger",
+    "recorded_at",
+    "summary",
+    "candidates"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "type": {
+      "const": "retrospective"
+    },
+    "repo": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+    },
+    "pr": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "head": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "round": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "verdict": {
+      "enum": [
+        "REQUEST_CHANGES",
+        "COMMENT",
+        "PASS",
+        "SKIPPED",
+        "INVALID_INVOCATION"
+      ]
+    },
+    "trigger": {
+      "enum": [
+        "auto_approve",
+        "manual"
+      ]
+    },
+    "recorded_at": {
+      "type": "string",
+      "minLength": 1
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "candidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "category",
+          "priority",
+          "summary",
+          "evidence",
+          "destination",
+          "disposition"
+        ],
+        "properties": {
+          "category": {
+            "enum": [
+              "false_positive",
+              "false_negative",
+              "triage",
+              "verification",
+              "information_access",
+              "automated_checks",
+              "tool_economy",
+              "instructions",
+              "config",
+              "run"
+            ]
+          },
+          "priority": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "destination": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "disposition": {
+            "enum": [
+              "proposal",
+              "watch",
+              "none"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

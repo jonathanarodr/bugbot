@@ -1,0 +1,220 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "bugbot/candidates.schema.json",
+  "title": "bugbot finder candidates",
+  "description": "candidates/<finder>.json: what one finder found in one PR round, before verification. Written by a finder agent (finder-bugs, finder-security, finder-convention) into the PR's cache folder (pr-<N>/candidates/, created by fetch); the file name is the finder run's name. Holds only judgment: `bugbot findings` derives the rest (finder from the file name, domain of each file from triage.json, domains covered from the run name) and numbers them, adds the verdicts and writes findings.json. Fetch empties the folder when the PR's head changes, so a file here is always for the current head. The candidate shape is findings.schema.json's finding without `id`, `domain`, `finder` and `verification`, which the assembly assigns.",
+  "x-file": "^[a-z][a-z0-9-]{0,40}\\.json$",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "candidates"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "version": {
+      "const": 2
+    },
+    "candidates": {
+      "description": "Problems found, unverified. Empty when the finder found nothing.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/candidate"
+      }
+    },
+    "agent": {
+      "description": "Who wrote this file, filled by the CLI from the harness's log (the dispatch named bugbot:<repo name>#<number>:<output>), never by the agent. Absent when the log was not found.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model",
+        "effort",
+        "session"
+      ],
+      "properties": {
+        "model": {
+          "description": "Model that actually ran (may differ from the skill's frontmatter `model:`).",
+          "type": "string"
+        },
+        "effort": {
+          "description": "Reasoning effort the harness logged; null when it logs none (usually its default).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "session": {
+          "description": "Harness session id of the orchestrator that dispatched it.",
+          "type": "string"
+        },
+        "run": {
+          "description": "The sub-agent's own id in that session's log (Copilot and Claude Code: agentId): tells apart runs that share the session.",
+          "type": "string"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "severity",
+        "pre_existing",
+        "category",
+        "title",
+        "explanation",
+        "file",
+        "line",
+        "side",
+        "evidence",
+        "confidence"
+      ],
+      "properties": {
+        "severity": {
+          "description": "Finding severity: Critical, High, Medium or Low, as defined in .agents/skills/bugbot/references/review-rules.md and refined by the repository's REVIEW.md.",
+          "enum": [
+            "Critical",
+            "High",
+            "Medium",
+            "Low"
+          ]
+        },
+        "pre_existing": {
+          "description": "The problem exists on the base branch too; the PR touched the code around it but did not introduce it. Reported as information, never as a reason to block.",
+          "type": "boolean"
+        },
+        "category": {
+          "description": "What kind of problem: correctness, security, performance, api-contract, accessibility, convention, test, docs.",
+          "enum": [
+            "correctness",
+            "security",
+            "performance",
+            "api-contract",
+            "accessibility",
+            "convention",
+            "test",
+            "docs"
+          ]
+        },
+        "title": {
+          "description": "One line, the problem and not the fix. Part of the fingerprint: the same problem must get the same title on every round.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "explanation": {
+          "description": "Why it is a problem and what happens at runtime, in Markdown. Becomes the comment body.",
+          "type": "string",
+          "minLength": 1
+        },
+        "suggestion": {
+          "description": "Optional replacement for the anchored line(s), exact code that compiles. Rendered as a GitHub suggestion block, so only when the fix fits the commented lines.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "file": {
+          "description": "Path from the repository root, as in the diff.",
+          "type": "string",
+          "minLength": 1
+        },
+        "line": {
+          "description": "Line on `side` the comment anchors to. Must be a line of the diff to become an inline comment; otherwise the finding goes to the review body under 'Outside the diff'.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "side": {
+          "description": "RIGHT: the line in the PR's version (added or unchanged). LEFT: a removed line, in the base version.",
+          "enum": [
+            "RIGHT",
+            "LEFT"
+          ]
+        },
+        "evidence": {
+          "description": "What the finding rests on, checkable by someone else: the code quoted verbatim from the file, and the file:line of every other place the claim depends on (caller, rule, test). A claim inferred from a name is not evidence.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/evidence"
+          }
+        },
+        "rule": {
+          "description": "The written rule a convention finding enforces: where it is (file and heading) and the sentence quoted. Required for category convention: without it the comment reads as taste.",
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "source",
+            "quote"
+          ],
+          "properties": {
+            "source": {
+              "description": "File and section, e.g. REVIEW.md#Always check or AGENTS.md:42.",
+              "type": "string"
+            },
+            "quote": {
+              "type": "string"
+            }
+          }
+        },
+        "confidence": {
+          "description": "CONFIRMED: the evidence was read and holds. PLAUSIBLE: likely, but checking it would need running code or reading more than is cheap; rendered with a note.",
+          "enum": [
+            "CONFIRMED",
+            "PLAUSIBLE"
+          ]
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "file",
+        "line",
+        "quote"
+      ],
+      "properties": {
+        "file": {
+          "description": "Path from the root of the repository the line is in: this PR's, or `repo`'s. Installed dependencies and repositories outside the workspace cannot be checked by a verifier, so they go in the explanation, not here.",
+          "type": "string",
+          "pattern": "^(?!/)(?!\\.\\./)(?!node_modules/)(?!.*/node_modules/).+"
+        },
+        "repo": {
+          "description": "Another repository of the workspace (owner/name, a key of workspace.json repos) when the line is there, for example the code a documentation page describes. Read from its clone at its default branch: `git -C <path> show <remote>/<default_branch>:<file>`; `ref` does not apply. Omitted: this PR's repository.",
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+        },
+        "ref": {
+          "description": "Version the line comes from: head (the PR, read in the worktree; default) or base (the merge base, for code the PR removed or changed: `git show <merge_base>:<file>`).",
+          "enum": [
+            "head",
+            "base"
+          ],
+          "default": "head"
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "quote": {
+          "description": "Verbatim text of that line (or the few lines around it).",
+          "type": "string"
+        },
+        "note": {
+          "description": "Why this line matters to the claim.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}

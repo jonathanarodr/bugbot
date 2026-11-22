@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "bugbot/translate.schema.json",
+  "title": "bugbot review translation",
+  "description": "translate.json: the text of one round's review in review.language, written by the bot agent from findings.json before `bugbot publish`, in the PR's cache folder. Only what is posted is translated; findings.json stays in English (its titles are fingerprints). Code, identifiers, file paths and quoted rules are never translated. Any key left out falls back to English.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "language",
+    "head"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "version": {
+      "const": 1
+    },
+    "language": {
+      "description": "review.language this text is in.",
+      "type": "string"
+    },
+    "head": {
+      "description": "findings.json head: a translation of another round is refused.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "tldr": {
+      "description": "The review's summary paragraph: what a reader must know first, in two sentences at most.",
+      "type": "string"
+    },
+    "findings": {
+      "description": "Per finding id (F1, F2...): title and explanation in review.language.",
+      "type": "object",
+      "patternProperties": {
+        "^F[0-9]+$": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "title": {
+              "type": "string",
+              "minLength": 1
+            },
+            "explanation": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "text": {
+      "description": "Fixed strings of the review body, by key (heading, findings_line, findings_line_first, scope_line, pre_existing, plausible, rule, outside_title, outside_note, footer, pass_tldr, unchanged_tldr, approve_denied_status, approve_denied). Built-in languages (lib/publish/publish.py LOCALES) already have them; set a key only to override. Placeholders in braces stay as they are.",
+      "type": "object",
+      "propertyNames": {
+        "enum": [
+          "heading",
+          "pass_tldr",
+          "unchanged_tldr",
+          "findings_line",
+          "findings_line_first",
+          "scope_line",
+          "pre_existing",
+          "plausible",
+          "rule",
+          "outside_title",
+          "outside_note",
+          "footer",
+          "approve_denied_status",
+          "approve_denied"
+        ]
+      },
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  }
+}
